@@ -23,6 +23,7 @@
 
 #include "rbuoy.h"
 
+#define MAGIC_NUMBER_BYTES 4
 
 /// @brief Create a TABI file from an array of pathnames.
 /// @param out_pathname A path to where the new TABI file should be created.
@@ -32,7 +33,62 @@
 ///                         subset 5, when this is zero, you should include
 ///                         everything in the current directory.
 void stage_1(char *out_pathname, char *in_pathnames[], size_t num_in_pathnames) {
-    // TODO: implement this.
+    // Create file with name `out_pathname`
+    FILE *output_file = fopen(out_pathname, "w");
+    if (output_file == NULL) {
+        perror("Error");
+    }
+    
+    // Write header to output file
+    // MAGIC NUMBER
+    for (size_t str_char = 0; str_char < MAGIC_SIZE; str_char++) {
+        fputc(TYPE_A_MAGIC[str_char], output_file);
+    }
+    // NUMBER OF RECORDS
+    fputc(num_in_pathnames, output_file);
+
+    // Create record for each file
+    for (size_t file_num = 0; file_num < num_in_pathnames; file_num++) {
+        // PATHNAME LENGTH
+        size_t path_length = strlen(in_pathnames[file_num]);
+        if (path_length > 0xFFFF) {
+            fprintf(
+                stderr, 
+                "Invalid Length: path '%s' is more than 65535 chars long", 
+                in_pathnames[file_num]
+            );
+            exit(1);
+        }
+        fputc(path_length, output_file);
+
+        // PATHNAME
+        for (size_t i = 0; i < path_length; i++) {
+            fputc(in_pathnames[file_num][i], output_file);
+        }
+
+        struct stat buffer;
+        int status = stat(in_pathnames[file_num], &buffer);
+
+        // NUMBER OF BLOCKS
+        size_t num_blocks = number_of_blocks_in_file(buffer.st_size);
+        if (num_blocks > 0xFFFFFF) {
+            fprintf(
+                stderr,
+                "Invalid Size: number of 256 byte blocks is greater than 16777216 (~4.29GB)"
+            );
+            exit(1);
+        }
+
+
+        // HASHES
+        for (size_t block_num = 0; block_num < num_blocks; block_num++) {
+            hash_block()
+            fputc()
+        }
+    }
+
+    
+
 
     // Hint: you will need to:
     //   * Open `out_pathname` using fopen, which will be the output TABI file.
@@ -47,6 +103,8 @@ void stage_1(char *out_pathname, char *in_pathnames[], size_t num_in_pathnames) 
     //         * Write out that hash as an 8 byte little endian integer
     // Each time you need to write out a little endian integer you should
     // compute each byte using bitwise operations like <<, &, or |
+
+
 }
 
 

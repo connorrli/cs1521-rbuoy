@@ -1,0 +1,7 @@
+# TABI, TBBI and TCBI files
+*.tabi
+*.tbbi
+*.tcbi
+
+# Compiled program
+rbuoy
