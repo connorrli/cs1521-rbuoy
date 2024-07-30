@@ -131,10 +131,11 @@ void Out_Create_TBBI(FILE *tabi, FILE *tbbi) {
         );
         printf("%lu\n", pathname_length);
 
-        char pathname[pathname_length];
+        char pathname[pathname_length + 1];
         fread_handler(
             pathname, sizeof(char), pathname_length, tabi
         );
+        pathname[pathname_length] = '\0';
 
         uint8_t num_blocks_bytes[NUM_BLOCKS_SIZE];
         fread_handler(
