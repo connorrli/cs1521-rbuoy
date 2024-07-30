@@ -1,0 +1,138 @@
+#include <stdio.h>
+#include <sys/stat.h>
+#include <string.h>
+#include <limits.h>
+#include "helpers.h"
+#include "rbuoy.h"
+
+#define BITS_IN_BYTE 8
+
+//////////////////////////////////////////////////////////////////////
+//                        FUNCTION PROTOTYPES
+//////////////////////////////////////////////////////////////////////
+
+void file_append_hashes(FILE *src, FILE *dest, size_t num_blocks);
+struct stat file_get_stat(char *pathname);
+size_t file_get_num_blocks(long bytes, char *pathname);
+void int_to_bytes(uint64_t num, unsigned char bytes[], int num_bytes);
+
+//////////////////////////////////////////////////////////////////////
+//                        INTERFACE FUNCTIONS
+//////////////////////////////////////////////////////////////////////
+
+FILE *Out_Open(char *pathname, char *open_type) {
+    FILE *f = fopen(pathname, open_type);
+    if (f == NULL) {
+        perror("Error");
+        exit(1);
+    }
+
+    return f;
+}
+
+void Out_Append_Header(FILE *f, char *magic_number, int num_records) {
+    if (num_records > 0xFF) {
+        fprintf(stderr, "Error: Too many records (> 256)");
+        exit(1);
+    }
+    
+}
+
+int Out_Append_Records(FILE *f, char *in_pathnames[], size_t num_in_pathnames) {
+    // LOCAL CONSTS
+    const int START_BYTE = MAGIC_SIZE + NUM_RECORDS_SIZE;
+
+    int counter = 0;
+
+    // Set pointer to just after the header
+    fseek(f, START_BYTE, SEEK_SET);
+    for (size_t i = 0; i < num_in_pathnames; i++) {
+        if (counter > UCHAR_MAX) {
+            fprintf(stderr, "Error: Too many files, > %u", UCHAR_MAX);
+            exit(1);
+        }
+
+        // Get file status
+        struct stat stat = file_get_stat(in_pathnames[i]);
+
+        // Get path length
+        int path_length = strlen(in_pathnames[i]);
+        if ((path_length | USHRT_MAX) > USHRT_MAX) {
+            fprintf(
+                stderr, "Error: file '%s' length > %u", 
+                in_pathnames[i], USHRT_MAX
+            );
+            exit(1);
+        }
+
+        // Get number of 256-byte blocks
+        size_t num_blocks = file_get_num_blocks(
+            stat.st_size, in_pathnames[i]
+        );
+
+        // Write record details
+        unsigned char path_length_bytes[PATHNAME_LEN_SIZE];
+        int_to_bytes(path_length, path_length_bytes, PATHNAME_LEN_SIZE);
+        fwrite(path_length_bytes, sizeof(char), PATHNAME_LEN_SIZE, f);
+
+        fwrite(in_pathnames[i], sizeof(char), path_length, f);
+
+        unsigned char num_blocks_bytes[NUM_BLOCKS_SIZE];
+        int_to_bytes(num_blocks, num_blocks_bytes, NUM_BLOCKS_SIZE);
+        fwrite(num_blocks_bytes, sizeof(char), NUM_BLOCKS_SIZE, f);
+
+        // Write hashed blocks separately
+        file_append_hashes(
+            fopen(in_pathnames[i], "rb"), 
+            f,
+            num_blocks
+        );
+
+        counter++;
+    }
+
+    return counter;
+}
+
+//////////////////////////////////////////////////////////////////////
+//                           LOCAL HELPERS
+//////////////////////////////////////////////////////////////////////
+
+void file_append_hashes(FILE *src, FILE *dest, size_t num_blocks) {
+
+}
+
+struct stat file_get_stat(char *pathname) {
+    struct stat buffer;
+    int status;
+    if ((status = stat(pathname, &buffer)) != 0) {
+        perror("Missing File");
+        exit(1);
+    }
+
+    return buffer;
+}
+
+size_t file_get_num_blocks(long bytes, char *pathname) {
+    // LOCAL CONSTS
+    const int MAX_3_BYTES = 0xFFFFFF;
+
+    size_t num_blocks = number_of_blocks_in_file(bytes);
+    if ((num_blocks | MAX_3_BYTES) > MAX_3_BYTES) {
+        fprintf(
+            stderr, "Error: file '%s' too large", 
+            pathname
+        );
+        exit(1);
+    }
+
+    return num_blocks;
+}
+
+void int_to_bytes(uint64_t num, unsigned char bytes[], int num_bytes) {
+    // Put largest number in biggest index to make little-endian
+    for (int i = num_bytes - 1; i >= 0; i--) {
+        bytes[i] = (num >> i * BITS_IN_BYTE) & 0xFF;
+    }
+}
+

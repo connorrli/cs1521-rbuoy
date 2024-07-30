@@ -9,8 +9,8 @@ endif
 
 EXERCISES	  += rbuoy
 
-SRC = rbuoy.c rbuoy_main.c rbuoy_provided.c
-INCLUDES = rbuoy.h
+SRC = rbuoy.c rbuoy_main.c rbuoy_provided.c helpers.c
+INCLUDES = rbuoy.h helpers.h
 
 # if you add extra .c files, add them here
 SRC +=
