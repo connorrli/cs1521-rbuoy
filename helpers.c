@@ -113,11 +113,12 @@ void file_append_hashes(FILE *src, FILE *dest, size_t num_blocks) {
     fseek(src, 0, SEEK_END);
     long size = ftell(src);
     fseek(src, 0, SEEK_SET);
-    
-    long trailing_size = size % BLOCK_SIZE;
+
+    long trailing_size_mod = size % BLOCK_SIZE;
+    long trailing_size = (trailing_size_mod == 0) ? 256 : trailing_size_mod;
 
     for (int i = 0; i < num_blocks; i++) {
-        fseek(src, 256 * i, SEEK_SET);
+        fseek(src, BLOCK_SIZE * i, SEEK_SET);
         char block[BLOCK_SIZE];
         
         uint64_t hashed_block;
