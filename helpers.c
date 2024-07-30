@@ -15,6 +15,7 @@ void file_append_hashes(FILE *src, FILE *dest, size_t num_blocks);
 struct stat file_get_stat(char *pathname);
 size_t file_get_num_blocks(long bytes, char *pathname);
 void int_to_bytes(uint64_t num, unsigned char bytes[], int num_bytes);
+void out_append_header(FILE *f, char *magic_number, int num_records);
 
 //////////////////////////////////////////////////////////////////////
 //                        INTERFACE FUNCTIONS
@@ -30,15 +31,7 @@ FILE *Out_Open(char *pathname, char *open_type) {
     return f;
 }
 
-void Out_Append_Header(FILE *f, char *magic_number, int num_records) {
-    if (num_records > 0xFF) {
-        fprintf(stderr, "Error: Too many records (> 256)");
-        exit(1);
-    }
-    
-}
-
-int Out_Append_Records(FILE *f, char *in_pathnames[], size_t num_in_pathnames) {
+void Out_Create_Table(FILE *f, char *in_pathnames[], size_t num_in_pathnames, char *magic_number) {
     // LOCAL CONSTS
     const int START_BYTE = MAGIC_SIZE + NUM_RECORDS_SIZE;
 
@@ -91,15 +84,58 @@ int Out_Append_Records(FILE *f, char *in_pathnames[], size_t num_in_pathnames) {
         counter++;
     }
 
-    return counter;
+    out_append_header(f, magic_number, counter);
+
+    return;
 }
 
 //////////////////////////////////////////////////////////////////////
 //                           LOCAL HELPERS
 //////////////////////////////////////////////////////////////////////
 
-void file_append_hashes(FILE *src, FILE *dest, size_t num_blocks) {
+void out_append_header(FILE *f, char *magic_number, int num_records) {
+    fseek(f, 0, SEEK_SET);
+    if (num_records > 0xFF) {
+        fprintf(stderr, "Error: Too many records (> 256)");
+        exit(1);
+    }
+    
+    for (int i = 0; i < MAGIC_SIZE; i++) {
+        fputc(magic_number[i], f);
+    }
 
+    fputc(num_records, f);
+
+    return;
+}
+
+void file_append_hashes(FILE *src, FILE *dest, size_t num_blocks) {
+    fseek(src, 0, SEEK_END);
+    long size = ftell(src);
+    fseek(src, 0, SEEK_SET);
+    
+    long trailing_size = size % BLOCK_SIZE;
+
+    for (int i = 0; i < num_blocks; i++) {
+        fseek(src, 256 * i, SEEK_SET);
+        char block[BLOCK_SIZE];
+        
+        uint64_t hashed_block;
+        if (i == num_blocks - 1) {
+            fread(block, sizeof(char), trailing_size, src);
+            hashed_block = hash_block(block, trailing_size);
+        } else {
+            fread(block, sizeof(char), BLOCK_SIZE, src);
+            hashed_block = hash_block(block, BLOCK_SIZE);      
+        }
+        
+        unsigned char hashed_chars[HASH_SIZE];
+        int_to_bytes(hashed_block, hashed_chars, HASH_SIZE);
+
+        fwrite(hashed_chars, sizeof(char), HASH_SIZE, dest);
+    }
+
+    return;
 }
 
 struct stat file_get_stat(char *pathname) {

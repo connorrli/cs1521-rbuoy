@@ -35,7 +35,7 @@ void stage_1(char *out_pathname, char *in_pathnames[], size_t num_in_pathnames) 
     // Create file with name `out_pathname`
     FILE *output_file = Out_Open(out_pathname, "w");
 
-    Out_Append_Records(output_file, in_pathnames, num_in_pathnames);
+    Out_Create_Table(output_file, in_pathnames, num_in_pathnames, TYPE_A_MAGIC);
 
 
     // Hint: you will need to:
