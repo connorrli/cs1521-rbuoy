@@ -335,7 +335,7 @@ uint64_t bytes_to_uint(uint8_t bytes[], uint64_t num_bytes) {
     uint64_t converted = 0;
 
     for (uint64_t byte_n = 0; byte_n < num_bytes; byte_n++) {
-        converted += (bytes[byte_n] << (byte_n * BITS_IN_BYTE));
+        converted += ((uint64_t)bytes[byte_n] << (byte_n * BITS_IN_BYTE));
     }
 
     return converted;
