@@ -71,7 +71,7 @@ void Out_Create_TABI(FILE *f, char *in_pathnames[], size_t num_in_pathnames, cha
 
         // Write record details
         unsigned char path_length_bytes[PATHNAME_LEN_SIZE];
-        int_to_bytes(path_length, path_length_bytes, PATHNAME_LEN_SIZE);
+        int_to_bytes(path_length - 1, path_length_bytes, PATHNAME_LEN_SIZE);
         fwrite(path_length_bytes, sizeof(char), PATHNAME_LEN_SIZE, f);
 
         fwrite(in_pathnames[i], sizeof(char), path_length - 1, f);
