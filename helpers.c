@@ -178,7 +178,7 @@ void file_find_matches(
         uint8_t buffer[HASH_SIZE];
         fread_handler(buffer, sizeof(char), HASH_SIZE, tabi);
 
-        uint64_t src_block_hash = bytes_to_uint(buffer, BLOCK_SIZE);
+        uint64_t src_block_hash = bytes_to_uint(buffer, HASH_SIZE);
 
         // If they are the same hash, then this block is a match
         if ((src_block_hash & hashes[block_n]) == src_block_hash) {
