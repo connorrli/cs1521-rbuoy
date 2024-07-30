@@ -41,6 +41,7 @@ void enforce_identifier(FILE *f, char *magic_number);
 FILE *File_Open(char *pathname, char *open_type) {
     FILE *f = fopen(pathname, open_type);
     if (f == NULL) {
+        fprintf(stderr, "'%s'\n", pathname);
         perror("Error");
         exit(1);
     }
@@ -109,13 +110,17 @@ void Out_Create_TABI(FILE *f, char *in_pathnames[], size_t num_in_pathnames, cha
 void Out_Create_TBBI(FILE *tabi, FILE *tbbi) {
     const int START_BYTE = MAGIC_SIZE + NUM_RECORDS_SIZE;
 
-    enforce_identifier(tabi, TYPE_A_MAGIC);
+    // enforce_identifier(tabi, TYPE_A_MAGIC);
     // uint64_t tabi_file_size = file_get_size(tabi);
 
     fseek_handler(tabi, MAGIC_SIZE, SEEK_SET);
-    int num_records = fgetc(tabi); 
+    unsigned char num_record_char[NUM_RECORDS_SIZE];
+    fread_handler(num_record_char, sizeof(char), NUM_RECORDS_SIZE, tabi);
+    int num_records = bytes_to_uint(num_record_char, 1); 
+    printf("%d\n", num_records);
 
     fseek_handler(tabi, START_BYTE, SEEK_SET);
+    fseek_handler(tbbi, START_BYTE, SEEK_SET);
     for (int record_n = 0; record_n < num_records; record_n++) {
         uint8_t pathname_length_bytes[PATHNAME_LEN_SIZE];
         fread_handler(
@@ -124,6 +129,7 @@ void Out_Create_TBBI(FILE *tabi, FILE *tbbi) {
         uint64_t pathname_length = bytes_to_uint(
             pathname_length_bytes, PATHNAME_LEN_SIZE
         );
+        printf("%lu\n", pathname_length);
 
         char pathname[pathname_length];
         fread_handler(
@@ -150,7 +156,6 @@ void Out_Create_TBBI(FILE *tabi, FILE *tbbi) {
             tabi, hashes, match_bytes, num_blocks, num_match_bytes
         );
 
-        fseek_handler(tbbi, START_BYTE, SEEK_SET);
         fwrite(pathname_length_bytes, sizeof(char), PATHNAME_LEN_SIZE, tbbi);
         fwrite(pathname, sizeof(char), pathname_length, tbbi);
         fwrite(num_blocks_bytes, sizeof(char), NUM_BLOCKS_SIZE, tbbi);
@@ -169,8 +174,8 @@ void file_find_matches(
     uint64_t match_index = 0;
 
     for (size_t block_n = 0; block_n < num_blocks; block_n++) {
-        uint8_t buffer[BLOCK_SIZE];
-        fread_handler(buffer, sizeof(char), BLOCK_SIZE, tabi);
+        uint8_t buffer[HASH_SIZE];
+        fread_handler(buffer, sizeof(char), HASH_SIZE, tabi);
 
         uint64_t src_block_hash = bytes_to_uint(buffer, BLOCK_SIZE);
 
@@ -319,7 +324,7 @@ void fseek_handler(FILE *f, long offset, int whence) {
 
 // Simple function that call fread but errors out on fail
 void fread_handler(void *ptr, size_t size, size_t n, FILE *stream) {
-    if (fread(ptr, size, n, stream) != n) {
+    if (fread(ptr, size, n, stream) == EOF) {
         perror("Read Failed");
         exit(1);
     }
@@ -329,7 +334,7 @@ uint64_t bytes_to_uint(uint8_t bytes[], uint64_t num_bytes) {
     uint64_t converted = 0;
 
     for (uint64_t byte_n = 0; byte_n < num_bytes; byte_n++) {
-        converted += (bytes[byte_n] << byte_n * BITS_IN_BYTE);
+        converted += (bytes[byte_n] << (byte_n * BITS_IN_BYTE));
     }
 
     return converted;

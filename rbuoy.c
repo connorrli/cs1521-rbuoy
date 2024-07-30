@@ -48,7 +48,7 @@ void stage_1(char *out_pathname, char *in_pathnames[], size_t num_in_pathnames) 
 /// @param in_pathname A path to where the existing TABI file is located.
 void stage_2(char *out_pathname, char *in_pathname) {
     FILE *output_file = File_Open(out_pathname, "w");
-    FILE *input_file = File_Open(in_pathname, "w+");
+    FILE *input_file = File_Open(in_pathname, "r+");
 
     Out_Create_TBBI(input_file, output_file);
 }
