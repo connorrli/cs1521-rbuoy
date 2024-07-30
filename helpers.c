@@ -19,11 +19,15 @@ void out_append_header(FILE *f, char *magic_number, int num_records);
 void fseek_handler(FILE *f, long offset, int whence);
 void fread_handler(void *ptr, size_t size, size_t n, FILE *stream);
 
+uint64_t bytes_to_uint(uint8_t bytes[], uint64_t num_bytes);
+uint64_t file_get_size(FILE *f);
+void enforce_identifier(FILE *f, char *magic_number);
+
 //////////////////////////////////////////////////////////////////////
 //                        INTERFACE FUNCTIONS
 //////////////////////////////////////////////////////////////////////
 
-FILE *Out_Open(char *pathname, char *open_type) {
+FILE *File_Open(char *pathname, char *open_type) {
     FILE *f = fopen(pathname, open_type);
     if (f == NULL) {
         perror("Error");
@@ -70,7 +74,7 @@ void Out_Create_TABI(FILE *f, char *in_pathnames[], size_t num_in_pathnames, cha
         int_to_bytes(path_length, path_length_bytes, PATHNAME_LEN_SIZE);
         fwrite(path_length_bytes, sizeof(char), PATHNAME_LEN_SIZE, f);
 
-        fwrite(in_pathnames[i], sizeof(char), path_length, f);
+        fwrite(in_pathnames[i], sizeof(char), path_length - 1, f);
 
         unsigned char num_blocks_bytes[NUM_BLOCKS_SIZE];
         int_to_bytes(num_blocks, num_blocks_bytes, NUM_BLOCKS_SIZE);
@@ -89,6 +93,31 @@ void Out_Create_TABI(FILE *f, char *in_pathnames[], size_t num_in_pathnames, cha
     out_append_header(f, magic_number, counter);
 
     return;
+}
+
+void Out_Create_TBBI(FILE *tabi, FILE *tbbi) {
+    // enforce_identifier(tabi, TYPE_A_MAGIC);
+    // uint64_t tabi_file_size = file_get_size(tabi);
+
+    // fseek_handler(tabi, MAGIC_SIZE + 1, SEEK_SET);
+    // int num_records = fgetc(tabi);
+
+    // for (int record_n = 0; record_n < num_records; record_n++) {
+    //     uint8_t pathname_length_bytes[PATHNAME_LEN_SIZE];
+    //     fread_handler(
+    //         pathname_length_bytes, sizeof(char), PATHNAME_LEN_SIZE, tabi
+    //     );
+    //     uint64_t pathname_length = bytes_to_uint(
+    //         pathname_length_bytes, PATHNAME_LEN_SIZE
+    //     );
+
+    //     char pathname[pathname_length];
+    //     fread_handler(
+    //         pathname, sizeof(char), pathname_length, tabi
+    //     );
+
+    //     FILE *local_file = File_Open(pathname, "rw");
+    // }
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -145,6 +174,7 @@ void file_append_hashes(FILE *src, FILE *dest, size_t num_blocks) {
         fwrite(hashed_chars, sizeof(char), HASH_SIZE, dest);
     }
 
+    fclose(src);
     return;
 }
 
@@ -194,9 +224,43 @@ void fseek_handler(FILE *f, long offset, int whence) {
 
 // Simple function that call fread but errors out on fail
 void fread_handler(void *ptr, size_t size, size_t n, FILE *stream) {
-    if (fread(ptr, size, n, stream) != 0) {
+    if (fread(ptr, size, n, stream) != n) {
         perror("Read Failed");
         exit(1);
     }
+}
+
+uint64_t bytes_to_uint(uint8_t bytes[], uint64_t num_bytes) {
+    uint64_t converted = 0;
+
+    for (uint64_t byte_n = 0; byte_n < num_bytes; byte_n++) {
+        converted += (bytes[byte_n] << byte_n * BITS_IN_BYTE);
+    }
+
+    return converted;
+}
+
+uint64_t file_get_size(FILE *f) {
+    long pos = ftell(f);
+    fseek(f, 0, SEEK_END);
+    long size = ftell(f);
+    fseek(f, pos, SEEK_SET);
+
+    return size;
+}
+
+void enforce_identifier(FILE *f, char *magic_number) {
+    unsigned char magic[MAGIC_SIZE];
+    fread_handler(magic, sizeof(char), MAGIC_SIZE, f);
+
+    for (size_t i = 0; i < MAGIC_SIZE; i++) {
+        if (magic[i] != magic_number[i]) {
+            fprintf(stderr, "Error: Invalid file (missing TABI)");
+            exit(1);
+        }
+    }
+
+    fseek_handler(f, 0, SEEK_SET);
+    return;
 }
 
