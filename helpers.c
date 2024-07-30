@@ -71,10 +71,10 @@ void Out_Create_TABI(FILE *f, char *in_pathnames[], size_t num_in_pathnames, cha
 
         // Write record details
         unsigned char path_length_bytes[PATHNAME_LEN_SIZE];
-        int_to_bytes(path_length - 1, path_length_bytes, PATHNAME_LEN_SIZE);
+        int_to_bytes(path_length, path_length_bytes, PATHNAME_LEN_SIZE);
         fwrite(path_length_bytes, sizeof(char), PATHNAME_LEN_SIZE, f);
 
-        fwrite(in_pathnames[i], sizeof(char), path_length - 1, f);
+        fwrite(in_pathnames[i], sizeof(char), path_length, f);
 
         unsigned char num_blocks_bytes[NUM_BLOCKS_SIZE];
         int_to_bytes(num_blocks, num_blocks_bytes, NUM_BLOCKS_SIZE);
@@ -96,28 +96,28 @@ void Out_Create_TABI(FILE *f, char *in_pathnames[], size_t num_in_pathnames, cha
 }
 
 void Out_Create_TBBI(FILE *tabi, FILE *tbbi) {
-    // enforce_identifier(tabi, TYPE_A_MAGIC);
-    // uint64_t tabi_file_size = file_get_size(tabi);
+    enforce_identifier(tabi, TYPE_A_MAGIC);
+    uint64_t tabi_file_size = file_get_size(tabi);
 
-    // fseek_handler(tabi, MAGIC_SIZE + 1, SEEK_SET);
-    // int num_records = fgetc(tabi);
+    fseek_handler(tabi, MAGIC_SIZE + 1, SEEK_SET);
+    int num_records = fgetc(tabi);
 
-    // for (int record_n = 0; record_n < num_records; record_n++) {
-    //     uint8_t pathname_length_bytes[PATHNAME_LEN_SIZE];
-    //     fread_handler(
-    //         pathname_length_bytes, sizeof(char), PATHNAME_LEN_SIZE, tabi
-    //     );
-    //     uint64_t pathname_length = bytes_to_uint(
-    //         pathname_length_bytes, PATHNAME_LEN_SIZE
-    //     );
+    for (int record_n = 0; record_n < num_records; record_n++) {
+        uint8_t pathname_length_bytes[PATHNAME_LEN_SIZE];
+        fread_handler(
+            pathname_length_bytes, sizeof(char), PATHNAME_LEN_SIZE, tabi
+        );
+        uint64_t pathname_length = bytes_to_uint(
+            pathname_length_bytes, PATHNAME_LEN_SIZE
+        );
 
-    //     char pathname[pathname_length];
-    //     fread_handler(
-    //         pathname, sizeof(char), pathname_length, tabi
-    //     );
+        char pathname[pathname_length];
+        fread_handler(
+            pathname, sizeof(char), pathname_length, tabi
+        );
 
-    //     FILE *local_file = File_Open(pathname, "rw");
-    // }
+        FILE *local_file = File_Open(pathname, "r");
+    }
 }
 
 //////////////////////////////////////////////////////////////////////
