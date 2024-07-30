@@ -35,24 +35,9 @@ void stage_1(char *out_pathname, char *in_pathnames[], size_t num_in_pathnames) 
     // Create file with name `out_pathname`
     FILE *output_file = Out_Open(out_pathname, "w");
 
-    Out_Create_Table(output_file, in_pathnames, num_in_pathnames, TYPE_A_MAGIC);
+    Out_Create_TABI(output_file, in_pathnames, num_in_pathnames, TYPE_A_MAGIC);
 
-
-    // Hint: you will need to:
-    //   * Open `out_pathname` using fopen, which will be the output TABI file.
-    //   * For each pathname in `in_pathnames`:
-    //      * Write the length of the pathname as a 2 byte little endian integer
-    //      * Write the pathname
-    //      * Check the size of the input file, e.g. using stat
-    //      * Compute the number of blocks using number_of_blocks_in_file
-    //      * Write the number of blocks as a 3 byte little endian integer
-    //      * Open the input file, and read in blocks of size BLOCK_SIZE, and
-    //         * For each block call hash_black to compute the hash
-    //         * Write out that hash as an 8 byte little endian integer
-    // Each time you need to write out a little endian integer you should
-    // compute each byte using bitwise operations like <<, &, or |
-
-
+    return;
 }   
 
 

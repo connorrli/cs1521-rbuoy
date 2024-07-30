@@ -16,6 +16,8 @@ struct stat file_get_stat(char *pathname);
 size_t file_get_num_blocks(long bytes, char *pathname);
 void int_to_bytes(uint64_t num, unsigned char bytes[], int num_bytes);
 void out_append_header(FILE *f, char *magic_number, int num_records);
+void fseek_handler(FILE *f, long offset, int whence);
+void fread_handler(void *ptr, size_t size, size_t n, FILE *stream);
 
 //////////////////////////////////////////////////////////////////////
 //                        INTERFACE FUNCTIONS
@@ -31,14 +33,14 @@ FILE *Out_Open(char *pathname, char *open_type) {
     return f;
 }
 
-void Out_Create_Table(FILE *f, char *in_pathnames[], size_t num_in_pathnames, char *magic_number) {
+void Out_Create_TABI(FILE *f, char *in_pathnames[], size_t num_in_pathnames, char *magic_number) {
     // LOCAL CONSTS
     const int START_BYTE = MAGIC_SIZE + NUM_RECORDS_SIZE;
 
     int counter = 0;
 
     // Set pointer to just after the header
-    fseek(f, START_BYTE, SEEK_SET);
+    fseek_handler(f, START_BYTE, SEEK_SET);
     for (size_t i = 0; i < num_in_pathnames; i++) {
         if (counter > UCHAR_MAX) {
             fprintf(stderr, "Error: Too many files, > %u", UCHAR_MAX);
@@ -94,7 +96,7 @@ void Out_Create_Table(FILE *f, char *in_pathnames[], size_t num_in_pathnames, ch
 //////////////////////////////////////////////////////////////////////
 
 void out_append_header(FILE *f, char *magic_number, int num_records) {
-    fseek(f, 0, SEEK_SET);
+    fseek_handler(f, 0, SEEK_SET);
     if (num_records > 0xFF) {
         fprintf(stderr, "Error: Too many records (> 256)");
         exit(1);
@@ -110,23 +112,30 @@ void out_append_header(FILE *f, char *magic_number, int num_records) {
 }
 
 void file_append_hashes(FILE *src, FILE *dest, size_t num_blocks) {
-    fseek(src, 0, SEEK_END);
+    // LOCAL CONSTS
+    const size_t TRAILING_BLOCK = num_blocks - 1;
+
+    // Find entire file size
+    fseek_handler(src, 0, SEEK_END);
     long size = ftell(src);
-    fseek(src, 0, SEEK_SET);
+    fseek_handler(src, 0, SEEK_SET);
 
+    // Find trailing block size
     long trailing_size_mod = size % BLOCK_SIZE;
-    long trailing_size = (trailing_size_mod == 0) ? 256 : trailing_size_mod;
+    // If trailing block size is 256, don't make it equal to 0
+    long trailing_size = (trailing_size_mod == 0) ? 
+    BLOCK_SIZE : trailing_size_mod;
 
-    for (int i = 0; i < num_blocks; i++) {
-        fseek(src, BLOCK_SIZE * i, SEEK_SET);
+    for (size_t block_n = 0; block_n < num_blocks; block_n++) {
+        fseek_handler(src, BLOCK_SIZE * block_n, SEEK_SET);
         char block[BLOCK_SIZE];
         
         uint64_t hashed_block;
-        if (i == num_blocks - 1) {
-            fread(block, sizeof(char), trailing_size, src);
+        if (block_n == TRAILING_BLOCK) {
+            fread_handler(block, sizeof(char), trailing_size, src);
             hashed_block = hash_block(block, trailing_size);
         } else {
-            fread(block, sizeof(char), BLOCK_SIZE, src);
+            fread_handler(block, sizeof(char), BLOCK_SIZE, src);
             hashed_block = hash_block(block, BLOCK_SIZE);      
         }
         
@@ -170,6 +179,24 @@ void int_to_bytes(uint64_t num, unsigned char bytes[], int num_bytes) {
     // Put largest number in biggest index to make little-endian
     for (int i = num_bytes - 1; i >= 0; i--) {
         bytes[i] = (num >> i * BITS_IN_BYTE) & 0xFF;
+    }
+}
+
+// Simple function that call fseek but errors out on fail
+void fseek_handler(FILE *f, long offset, int whence) {
+    if (fseek(f, offset, whence) != 0) {
+        perror("Seek Failed");
+        exit(1);
+    }
+
+    return;
+}
+
+// Simple function that call fread but errors out on fail
+void fread_handler(void *ptr, size_t size, size_t n, FILE *stream) {
+    if (fread(ptr, size, n, stream) != 0) {
+        perror("Read Failed");
+        exit(1);
     }
 }
 
