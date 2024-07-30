@@ -1,5 +1,6 @@
 CFLAGS =
 
+
 ifneq (, $(shell which dcc))
 CC	?= dcc
 else
@@ -9,14 +10,14 @@ endif
 
 EXERCISES	  += rbuoy
 
-SRC = rbuoy.c rbuoy_main.c rbuoy_provided.c helpers.c
-INCLUDES = rbuoy.h helpers.h
+SRC = rbuoy.c rbuoy_main.c rbuoy_provided.c
+INCLUDES = rbuoy.h
 
 # if you add extra .c files, add them here
-SRC +=
+SRC += helpers.c
 
 # if you add extra .h files, add them here
-INCLUDES +=
+INCLUDES += helpers.h
 
 
 rbuoy:	$(SRC) $(INCLUDES)
