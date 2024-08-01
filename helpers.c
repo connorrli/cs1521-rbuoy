@@ -34,6 +34,7 @@ uint64_t block_get_hash(
 uint64_t bytes_to_uint(uint8_t bytes[], uint64_t num_bytes);
 uint64_t file_get_size(FILE *f);
 void enforce_identifier(FILE *f, char *magic_number);
+void check_eof(FILE *f);
 
 //////////////////////////////////////////////////////////////////////
 //                        INTERFACE FUNCTIONS
@@ -44,7 +45,6 @@ FILE *File_Open(char *pathname, char *open_type, char *file_type) {
 
     if (f == NULL) {
         if (strcmp(file_type, TYPE_A_MAGIC) == 0) {
-            fprintf(stderr, "'%s'\n", pathname);
             perror("Error");
             exit(1);
         }
@@ -113,7 +113,6 @@ void Out_Create_TABI(FILE *f, char *in_pathnames[], size_t num_in_pathnames, cha
 
         fclose(local_file);
     }
-
     out_append_header(f, magic_number, counter);
 
     return;
@@ -194,45 +193,10 @@ void Out_Create_TBBI(FILE *tabi, FILE *tbbi) {
 
         fwrite(match_bytes, sizeof(char), num_match_bytes, tbbi);
     }
-
     out_append_header(tbbi, TYPE_B_MAGIC, num_records);
 
+    check_eof(tabi);
     return;
-}
-
-void file_find_matches(
-    FILE *tabi, uint64_t hashes[], uint8_t match_bytes[], 
-    size_t num_blocks, size_t max_blocks, size_t num_match_bytes
-) {
-    uint64_t match_index = 0;
-
-    // Cover for first byte. Should have at least 1 byte but just in case.
-    if (num_match_bytes > 0) match_bytes[0] = 0;
-
-    for (size_t block_n = 0; block_n < num_blocks; block_n++) {
-        if (block_n % 8 == 0 && block_n != 0) {
-            match_index++;
-            match_bytes[match_index] = 0;
-        } else {
-            match_bytes[match_index] = match_bytes[match_index] << 1;
-        }
-
-        uint8_t buffer[HASH_SIZE];
-        fread_handler(buffer, sizeof(char), HASH_SIZE, tabi);
-
-        if (block_n >= max_blocks) continue;
-
-        uint64_t src_block_hash = bytes_to_uint(buffer, HASH_SIZE);
-        // If they are the same hash, then this block is a match
-        if (src_block_hash == hashes[block_n]) {
-            match_bytes[match_index] |= 0x01;
-        }
-
-        if (block_n == num_blocks - 1) {
-            uint8_t right_padding_amount = 7 - (block_n % 8);
-            match_bytes[match_index] = match_bytes[match_index] << right_padding_amount;
-        }
-    }
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -396,5 +360,47 @@ void enforce_identifier(FILE *f, char *magic_number) {
 
     fseek_handler(f, 0, SEEK_SET);
     return;
+}
+
+void check_eof(FILE *f) {
+    if (fgetc(f) != EOF) {
+        fprintf(stderr, "Error: visited all records but not EOF");
+        exit(1);
+    }
+}
+
+void file_find_matches(
+    FILE *tabi, uint64_t hashes[], uint8_t match_bytes[], 
+    size_t num_blocks, size_t max_blocks, size_t num_match_bytes
+) {
+    uint64_t match_index = 0;
+
+    // Cover for first byte. Should have at least 1 byte but just in case.
+    if (num_match_bytes > 0) match_bytes[0] = 0;
+
+    for (size_t block_n = 0; block_n < num_blocks; block_n++) {
+        if (block_n % 8 == 0 && block_n != 0) {
+            match_index++;
+            match_bytes[match_index] = 0;
+        } else {
+            match_bytes[match_index] = match_bytes[match_index] << 1;
+        }
+
+        uint8_t buffer[HASH_SIZE];
+        fread_handler(buffer, sizeof(char), HASH_SIZE, tabi);
+
+        if (block_n >= max_blocks) continue;
+
+        uint64_t src_block_hash = bytes_to_uint(buffer, HASH_SIZE);
+        // If they are the same hash, then this block is a match
+        if (src_block_hash == hashes[block_n]) {
+            match_bytes[match_index] |= 0x01;
+        }
+
+        if (block_n == num_blocks - 1) {
+            uint8_t right_padding_amount = 7 - (block_n % 8);
+            match_bytes[match_index] = match_bytes[match_index] << right_padding_amount;
+        }
+    }
 }
 
