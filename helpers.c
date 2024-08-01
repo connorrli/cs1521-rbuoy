@@ -356,7 +356,7 @@ void fseek_handler(FILE *f, long offset, int whence) {
 
 // Simple function that call fread but errors out on fail
 void fread_handler(void *ptr, size_t size, size_t n, FILE *stream) {
-    if (fread(ptr, size, n, stream) == EOF) {
+    if (fread(ptr, size, n, stream) < n) {
         perror("Read Failed");
         exit(1);
     }
