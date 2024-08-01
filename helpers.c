@@ -229,7 +229,6 @@ void file_find_matches(
         uint64_t src_block_hash = bytes_to_uint(buffer, HASH_SIZE);
         // If they are the same hash, then this block is a match
         if (src_block_hash == hashes[block_n]) {
-            printf("block_n: %lu | Values: (%lu, %lu)\n", block_n, src_block_hash, hashes[block_n]);
             match_bytes[match_index] |= 0x01;
         }
 
