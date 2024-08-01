@@ -161,6 +161,8 @@ void Out_Create_TBBI(FILE *tabi, FILE *tbbi) {
         fwrite(pathname, sizeof(char), pathname_length, tbbi);
         fwrite(num_blocks_bytes, sizeof(char), NUM_BLOCKS_SIZE, tbbi);
 
+        if (num_blocks == 0) continue;
+
         // A
         FILE *local_file = File_Open(pathname, "r", TYPE_B_MAGIC);
 
