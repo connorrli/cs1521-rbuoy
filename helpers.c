@@ -133,7 +133,6 @@ void Out_Create_TBBI(FILE *tabi, FILE *tbbi) {
     fseek_handler(tabi, START_BYTE, SEEK_SET);
     fseek_handler(tbbi, START_BYTE, SEEK_SET);
     for (int record_n = 0; record_n < num_records; record_n++) {
-
         // Get pathname length
         uint8_t pathname_length_bytes[PATHNAME_LEN_SIZE];
         fread_handler(
@@ -194,7 +193,7 @@ void Out_Create_TBBI(FILE *tabi, FILE *tbbi) {
         // Progress past any blocks that weren't checked
         if (num_blocks > num_local_blocks) {
             fseek_handler(
-                tabi, (num_blocks - num_local_blocks) * HASH_SIZE, SEEK_CUR
+                tabi, (num_blocks - num_local_blocks) * HASH_SIZE - 1, SEEK_CUR
             );
         }
 
