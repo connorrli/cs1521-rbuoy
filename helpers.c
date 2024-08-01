@@ -24,7 +24,7 @@ void fread_handler(void *ptr, size_t size, size_t n, FILE *stream);
 void file_get_hashes(FILE *src, uint64_t hashes[], size_t num_blocks);
 void file_find_matches(
     FILE *tabi, uint64_t hashes[], uint8_t match_bytes[], 
-    size_t num_blocks, size_t num_match_bytes
+    size_t num_blocks, size_t max_blocks, size_t num_match_bytes
 );
 uint64_t block_get_trailing(uint64_t size);
 uint64_t block_get_hash(
@@ -183,20 +183,12 @@ void Out_Create_TBBI(FILE *tabi, FILE *tbbi) {
         size_t max_num_blocks = (num_blocks > num_local_blocks) ? 
         num_local_blocks : num_blocks;
 
-        size_t num_match_bytes = num_tbbi_match_bytes(max_num_blocks);
-        uint8_t match_bytes[num_match_bytes];
+        size_t num_match_bytes = num_tbbi_match_bytes(num_blocks);
+        uint8_t match_bytes[num_blocks];
 
         file_find_matches(
-            tabi, hashes, match_bytes, max_num_blocks, num_match_bytes
+            tabi, hashes, match_bytes, num_blocks, max_num_blocks, num_match_bytes
         );
-
-        // Progress past any blocks that weren't checked
-        if (num_blocks > num_local_blocks) {
-            printf("Skip %lu blocks\n", num_blocks - num_local_blocks);
-            fseek_handler(
-                tabi, (num_blocks - num_local_blocks) * HASH_SIZE, SEEK_CUR
-            );
-        }
 
         fwrite(match_bytes, sizeof(char), num_match_bytes, tbbi);
     }
@@ -208,7 +200,7 @@ void Out_Create_TBBI(FILE *tabi, FILE *tbbi) {
 
 void file_find_matches(
     FILE *tabi, uint64_t hashes[], uint8_t match_bytes[], 
-    size_t num_blocks, size_t num_match_bytes
+    size_t num_blocks, size_t max_blocks, size_t num_match_bytes
 ) {
     uint64_t match_index = 0;
 
@@ -223,8 +215,12 @@ void file_find_matches(
             match_bytes[match_index] = match_bytes[match_index] << 1;
         }
 
+        if (block_n >= num_blocks) continue;
+
         uint8_t buffer[HASH_SIZE];
         fread_handler(buffer, sizeof(char), HASH_SIZE, tabi);
+
+        if (block_n >= max_blocks) continue;
 
         uint64_t src_block_hash = bytes_to_uint(buffer, HASH_SIZE);
         // If they are the same hash, then this block is a match
