@@ -126,7 +126,6 @@ void Out_Create_TBBI(FILE *tabi, FILE *tbbi) {
     unsigned char num_record_char[NUM_RECORDS_SIZE];
     fread_handler(num_record_char, sizeof(char), NUM_RECORDS_SIZE, tabi);
     int num_records = bytes_to_uint(num_record_char, 1); 
-    printf("%d\n", num_records);
 
     fseek_handler(tabi, START_BYTE, SEEK_SET);
     fseek_handler(tbbi, START_BYTE, SEEK_SET);
@@ -207,10 +206,8 @@ void file_find_matches(
         fread_handler(buffer, sizeof(char), HASH_SIZE, tabi);
 
         uint64_t src_block_hash = bytes_to_uint(buffer, HASH_SIZE);
-        printf("Block [%lu], (%lu, %lu)\n", block_n, src_block_hash, hashes[block_n]);
         // If they are the same hash, then this block is a match
         if ((src_block_hash & hashes[block_n]) == src_block_hash) {
-            printf("\nhere\n");
             match_bytes[match_index] = match_bytes[match_index] | 0x01;
         }
 
