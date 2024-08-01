@@ -133,6 +133,7 @@ void Out_Create_TBBI(FILE *tabi, FILE *tbbi) {
     fseek_handler(tabi, START_BYTE, SEEK_SET);
     fseek_handler(tbbi, START_BYTE, SEEK_SET);
     for (int record_n = 0; record_n < num_records; record_n++) {
+
         // Get pathname length
         uint8_t pathname_length_bytes[PATHNAME_LEN_SIZE];
         fread_handler(
@@ -164,17 +165,17 @@ void Out_Create_TBBI(FILE *tabi, FILE *tbbi) {
         // A
         FILE *local_file = File_Open(pathname, "r", TYPE_B_MAGIC);
 
-        // If file not found or no blocks, then matches is 0
-        if (local_file == NULL || num_blocks == 0) {
-            // We want to progress past the hashes in the tabi file
-            fseek_handler(tabi, num_blocks * HASH_SIZE, SEEK_CUR);
-            continue;
-        }
-
         size_t num_local_blocks = file_get_num_blocks(
             file_get_size(local_file),
             pathname
         );
+
+        // If file not found or no blocks, then matches is 0
+        if (local_file == NULL || num_blocks == 0 || num_local_blocks == 0) {
+            // We want to progress past the hashes in the tabi file
+            fseek_handler(tabi, num_blocks * HASH_SIZE, SEEK_CUR);
+            continue;
+        }
 
         // Get all hashes for local file
         uint64_t hashes[num_local_blocks];
@@ -376,6 +377,8 @@ uint64_t bytes_to_uint(uint8_t bytes[], uint64_t num_bytes) {
 }
 
 uint64_t file_get_size(FILE *f) {
+    if (f == NULL) return 0;
+
     long pos = ftell(f);
     fseek(f, 0, SEEK_END);
     long size = ftell(f);
