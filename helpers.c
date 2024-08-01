@@ -192,8 +192,9 @@ void Out_Create_TBBI(FILE *tabi, FILE *tbbi) {
 
         // Progress past any blocks that weren't checked
         if (num_blocks > num_local_blocks) {
+            printf("Skip %lu blocks\n", num_blocks - num_local_blocks);
             fseek_handler(
-                tabi, (num_blocks - num_local_blocks) * HASH_SIZE - 1, SEEK_CUR
+                tabi, (num_blocks - num_local_blocks) * HASH_SIZE, SEEK_CUR
             );
         }
 
