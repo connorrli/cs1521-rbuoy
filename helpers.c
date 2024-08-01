@@ -184,9 +184,6 @@ void Out_Create_TBBI(FILE *tabi, FILE *tbbi) {
             file_find_matches(
                 tabi, placeholder_array, match_bytes, num_blocks, 0, num_tbbi_match_bytes(num_blocks)
             );
-
-            uint64_t hashes[num_local_blocks];
-            file_get_hashes(local_file, hashes, num_local_blocks);
         } else {
             uint64_t hashes[num_local_blocks];
             file_get_hashes(local_file, hashes, num_local_blocks);
