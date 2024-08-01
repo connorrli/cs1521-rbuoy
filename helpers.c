@@ -161,14 +161,11 @@ void Out_Create_TBBI(FILE *tabi, FILE *tbbi) {
         unsigned char pathname_length_convert[PATHNAME_LEN_SIZE];
         int_to_bytes(pathname_length, pathname_length_convert, PATHNAME_LEN_SIZE);
 
-        unsigned char pathname_convert[pathname_length];
-        int_to_bytes(pathname, pathname_convert, pathname_length_convert);
-
         unsigned char num_blocks_convert[NUM_BLOCKS_SIZE];
         int_to_bytes(num_blocks, num_blocks_convert, NUM_BLOCKS_SIZE);
 
         fwrite(pathname_length_convert, sizeof(char), PATHNAME_LEN_SIZE, tbbi);
-        fwrite(pathname_convert, sizeof(char), pathname_length, tbbi);
+        fwrite(pathname, sizeof(char), pathname_length, tbbi);
         fwrite(num_blocks_convert, sizeof(char), NUM_BLOCKS_SIZE, tbbi);
 
         // A
