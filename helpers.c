@@ -11,7 +11,9 @@
 //                        FUNCTION PROTOTYPES
 //////////////////////////////////////////////////////////////////////
 
-void file_append_hashes(FILE *src, FILE *dest, size_t num_blocks);
+void file_append_hashes(
+    FILE *src, FILE *dest, uint64_t hashes[], size_t num_hashes
+);
 struct stat file_get_stat(char *pathname);
 size_t file_get_num_blocks(long bytes, char *pathname);
 void int_to_bytes(uint64_t num, unsigned char bytes[], int num_bytes);
@@ -24,7 +26,6 @@ void file_find_matches(
     FILE *tabi, uint64_t hashes[], uint8_t match_bytes[], 
     size_t num_blocks, size_t num_match_bytes
 );
-void file_get_hashes(FILE *src, uint64_t hashes[], size_t num_blocks);
 uint64_t block_get_trailing(uint64_t size);
 uint64_t block_get_hash(
     FILE *src, char block[BLOCK_SIZE], int isTrailing, long trailing_size
@@ -38,14 +39,20 @@ void enforce_identifier(FILE *f, char *magic_number);
 //                        INTERFACE FUNCTIONS
 //////////////////////////////////////////////////////////////////////
 
-FILE *File_Open(char *pathname, char *open_type) {
+FILE *File_Open(char *pathname, char *open_type, char *file_type) {
     FILE *f = fopen(pathname, open_type);
-    if (f == NULL) {
-        fprintf(stderr, "'%s'\n", pathname);
-        perror("Error");
-        exit(1);
-    }
 
+    if (f == NULL) {
+        if (strcmp(file_type, TYPE_A_MAGIC) == 0) {
+            fprintf(stderr, "'%s'\n", pathname);
+            perror("Error");
+            exit(1);
+        }
+
+        if (strcmp(file_type, TYPE_B_MAGIC) == 0) return f;
+
+        // TODO: Cover case for TYPE_C_MAGIC depending on requirements
+    }
     return f;
 }
 
@@ -93,11 +100,13 @@ void Out_Create_TABI(FILE *f, char *in_pathnames[], size_t num_in_pathnames, cha
         fwrite(num_blocks_bytes, sizeof(char), NUM_BLOCKS_SIZE, f);
 
         // Write hashed blocks separately
-        file_append_hashes(
-            fopen(in_pathnames[i], "rb"), 
-            f,
-            num_blocks
-        );
+        uint64_t hashes[num_blocks];
+        FILE *local_file = fopen(in_pathnames[i], "rb");
+
+        file_get_hashes(local_file, hashes, num_blocks);
+        file_append_hashes(local_file, f, hashes, num_blocks);
+
+        fclose(local_file);
 
         counter++;
     }
@@ -122,6 +131,7 @@ void Out_Create_TBBI(FILE *tabi, FILE *tbbi) {
     fseek_handler(tabi, START_BYTE, SEEK_SET);
     fseek_handler(tbbi, START_BYTE, SEEK_SET);
     for (int record_n = 0; record_n < num_records; record_n++) {
+        // Get pathname length
         uint8_t pathname_length_bytes[PATHNAME_LEN_SIZE];
         fread_handler(
             pathname_length_bytes, sizeof(char), PATHNAME_LEN_SIZE, tabi
@@ -129,22 +139,33 @@ void Out_Create_TBBI(FILE *tabi, FILE *tbbi) {
         uint64_t pathname_length = bytes_to_uint(
             pathname_length_bytes, PATHNAME_LEN_SIZE
         );
-        printf("%lu\n", pathname_length);
 
+        // Get pathname, add 1 extra for '\0' just in case
         char pathname[pathname_length + 1];
         fread_handler(
             pathname, sizeof(char), pathname_length, tabi
         );
         pathname[pathname_length] = '\0';
 
+        // Get number of blocks
         uint8_t num_blocks_bytes[NUM_BLOCKS_SIZE];
         fread_handler(
             num_blocks_bytes, sizeof(char), NUM_BLOCKS_SIZE, tabi
         );
         uint64_t num_blocks = bytes_to_uint(num_blocks_bytes, NUM_BLOCKS_SIZE);
-        if (num_blocks <= 0) continue;
 
-        FILE *local_file = File_Open(pathname, "w+");
+        // Append all those properties
+        fwrite(pathname_length_bytes, sizeof(char), PATHNAME_LEN_SIZE, tbbi);
+        fwrite(pathname, sizeof(char), pathname_length, tbbi);
+        fwrite(num_blocks_bytes, sizeof(char), NUM_BLOCKS_SIZE, tbbi);
+
+        // A
+        FILE *local_file = File_Open(pathname, "a+", TYPE_B_MAGIC);
+
+        // If file not found or no blocks, then matches is 0
+        if (local_file == NULL || num_blocks == 0) {
+            continue;
+        }
 
         size_t num_match_bytes = num_tbbi_match_bytes(num_blocks);
         uint8_t match_bytes[num_match_bytes];
@@ -157,9 +178,6 @@ void Out_Create_TBBI(FILE *tabi, FILE *tbbi) {
             tabi, hashes, match_bytes, num_blocks, num_match_bytes
         );
 
-        fwrite(pathname_length_bytes, sizeof(char), PATHNAME_LEN_SIZE, tbbi);
-        fwrite(pathname, sizeof(char), pathname_length, tbbi);
-        fwrite(num_blocks_bytes, sizeof(char), NUM_BLOCKS_SIZE, tbbi);
         fwrite(match_bytes, sizeof(char), num_match_bytes, tbbi);
     }
 
@@ -174,21 +192,31 @@ void file_find_matches(
 ) {
     uint64_t match_index = 0;
 
+    // Cover for first byte. Should have at least 1 byte but just in case.
+    if (num_match_bytes > 0) match_bytes[0] = 0;
+
     for (size_t block_n = 0; block_n < num_blocks; block_n++) {
+        if (block_n % 8 == 0 && block_n != 0) {
+            match_index++;
+            match_bytes[match_index] = 0;
+        } else {
+            match_bytes[match_index] = match_bytes[match_index] << 1;
+        }
+
         uint8_t buffer[HASH_SIZE];
         fread_handler(buffer, sizeof(char), HASH_SIZE, tabi);
 
         uint64_t src_block_hash = bytes_to_uint(buffer, HASH_SIZE);
-
+        printf("Block [%lu], (%lu, %lu)\n", block_n, src_block_hash, hashes[block_n]);
         // If they are the same hash, then this block is a match
         if ((src_block_hash & hashes[block_n]) == src_block_hash) {
+            printf("\nhere\n");
             match_bytes[match_index] = match_bytes[match_index] | 0x01;
         }
 
-        match_bytes[match_index] = match_bytes[match_index] << 1;
-        if (block_n % 8 == 0 && block_n != 0) {
-            match_index++;
-            match_bytes[match_index] = 0;
+        if (block_n == num_blocks - 1) {
+            uint8_t right_padding_amount = 7 - (block_n % 8);
+            match_bytes[match_index] = match_bytes[match_index] << right_padding_amount;
         }
     }
 }
@@ -222,41 +250,30 @@ void file_get_hashes(FILE *src, uint64_t hashes[], size_t num_blocks) {
 
     for (size_t block_n = 0; block_n < num_blocks; block_n++) {
         fseek_handler(src, BLOCK_SIZE * block_n, SEEK_SET);
-        char block[BLOCK_SIZE];
 
         int isTrailing = (block_n == TRAILING_BLOCK) ? 1 : 0;
+
+        char block[BLOCK_SIZE];
         uint64_t hashed_block = block_get_hash(src, block, isTrailing, trailing_size);
 
         hashes[block_n] = hashed_block;
     }
 }
 
-void file_append_hashes(FILE *src, FILE *dest, size_t num_blocks) {
-    // LOCAL CONSTS
-    const size_t TRAILING_BLOCK = num_blocks - 1;
 
-    // Find entire file size
-    uint64_t size = file_get_size(src);
 
-    // Find trailing block size
-    uint64_t trailing_size = block_get_trailing(size);
-
-    for (size_t block_n = 0; block_n < num_blocks; block_n++) {
-        fseek_handler(src, BLOCK_SIZE * block_n, SEEK_SET);
-        char block[BLOCK_SIZE];
-        
-        int isTrailing = (block_n == TRAILING_BLOCK) ? 1 : 0;
-        uint64_t hashed_block = block_get_hash(src, block, isTrailing, trailing_size);
-        
+void file_append_hashes(FILE *src, FILE *dest, uint64_t hashes[], size_t num_hashes) {
+    for (size_t hash_n = 0; hash_n < num_hashes; hash_n++) {
         unsigned char hashed_chars[HASH_SIZE];
-        int_to_bytes(hashed_block, hashed_chars, HASH_SIZE);
+        int_to_bytes(hashes[hash_n], hashed_chars, HASH_SIZE);
 
         fwrite(hashed_chars, sizeof(char), HASH_SIZE, dest);
     }
 
-    fclose(src);
     return;
 }
+
+
 
 uint64_t block_get_trailing(uint64_t size) {
     uint64_t trailing_size_mod = size % BLOCK_SIZE;
@@ -273,7 +290,7 @@ uint64_t block_get_hash(
         hashed_block = hash_block(block, trailing_size);
     } else {
         fread_handler(block, sizeof(char), BLOCK_SIZE, src);
-        hashed_block = hash_block(block, BLOCK_SIZE);      
+        hashed_block = hash_block(block, BLOCK_SIZE);
     }
 
     return hashed_block;
