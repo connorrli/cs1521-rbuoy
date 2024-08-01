@@ -221,8 +221,6 @@ void file_find_matches(
             match_bytes[match_index] = match_bytes[match_index] << 1;
         }
 
-        if (block_n >= num_blocks) continue;
-
         uint8_t buffer[HASH_SIZE];
         fread_handler(buffer, sizeof(char), HASH_SIZE, tabi);
 
