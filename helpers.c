@@ -157,22 +157,17 @@ void Out_Create_TBBI(FILE *tabi, FILE *tbbi) {
         uint64_t num_blocks = bytes_to_uint(num_blocks_bytes, NUM_BLOCKS_SIZE);
 
         // Append all those properties
-
-        unsigned char pathname_length_convert[PATHNAME_LEN_SIZE];
-        int_to_bytes(pathname_length, pathname_length_convert, PATHNAME_LEN_SIZE);
-
-        unsigned char num_blocks_convert[NUM_BLOCKS_SIZE];
-        int_to_bytes(num_blocks, num_blocks_convert, NUM_BLOCKS_SIZE);
-
-        fwrite(pathname_length_convert, sizeof(char), PATHNAME_LEN_SIZE, tbbi);
+        fwrite(pathname_length_bytes, sizeof(char), PATHNAME_LEN_SIZE, tbbi);
         fwrite(pathname, sizeof(char), pathname_length, tbbi);
-        fwrite(num_blocks_convert, sizeof(char), NUM_BLOCKS_SIZE, tbbi);
+        fwrite(num_blocks_bytes, sizeof(char), NUM_BLOCKS_SIZE, tbbi);
 
         // A
         FILE *local_file = File_Open(pathname, "r", TYPE_B_MAGIC);
 
         // If file not found or no blocks, then matches is 0
         if (local_file == NULL || num_blocks == 0) {
+            // We want to progress past the hashes in the tabi file
+            fseek_handler(tabi, num_blocks * HASH_SIZE, SEEK_CUR);
             continue;
         }
 
