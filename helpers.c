@@ -181,8 +181,11 @@ void Out_Create_TBBI(FILE *tabi, FILE *tbbi) {
         uint64_t hashes[num_local_blocks];
         file_get_hashes(local_file, hashes, num_local_blocks);
 
+        size_t max_num_blocks = (num_blocks > num_local_blocks) ? 
+        num_local_blocks : num_blocks;
+
         file_find_matches(
-            tabi, hashes, match_bytes, num_blocks, num_match_bytes
+            tabi, hashes, match_bytes, max_num_blocks, num_match_bytes
         );
 
         fwrite(match_bytes, sizeof(char), num_match_bytes, tbbi);
