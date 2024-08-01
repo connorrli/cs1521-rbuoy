@@ -170,25 +170,34 @@ void Out_Create_TBBI(FILE *tabi, FILE *tbbi) {
         );
 
         // If file not found or no blocks, then matches is 0
-        if (local_file == NULL || num_blocks == 0 || num_local_blocks == 0) {
+        if (local_file == NULL || num_blocks == 0) {
             // We want to progress past the hashes in the tabi file
             fseek_handler(tabi, num_blocks * HASH_SIZE, SEEK_CUR);
             continue;
         }
 
-        // Get all hashes for local file
-        uint64_t hashes[num_local_blocks];
-        file_get_hashes(local_file, hashes, num_local_blocks);
-
-        size_t max_num_blocks = (num_blocks > num_local_blocks) ? 
-        num_local_blocks : num_blocks;
-
         size_t num_match_bytes = num_tbbi_match_bytes(num_blocks);
-        uint8_t match_bytes[num_blocks];
+        uint8_t match_bytes[num_match_bytes];
+        
+        if (num_local_blocks == 0) {
+            uint64_t placeholder_array[1];
+            file_find_matches(
+                tabi, placeholder_array, match_bytes, num_blocks, 0, num_tbbi_match_bytes(num_blocks)
+            );
 
-        file_find_matches(
-            tabi, hashes, match_bytes, num_blocks, max_num_blocks, num_match_bytes
-        );
+            uint64_t hashes[num_local_blocks];
+            file_get_hashes(local_file, hashes, num_local_blocks);
+        } else {
+            uint64_t hashes[num_local_blocks];
+            file_get_hashes(local_file, hashes, num_local_blocks);
+
+            size_t max_num_blocks = (num_blocks > num_local_blocks) ? 
+            num_local_blocks : num_blocks;
+
+            file_find_matches(
+                tabi, hashes, match_bytes, num_blocks, max_num_blocks, num_match_bytes
+            );
+        }
 
         fwrite(match_bytes, sizeof(char), num_match_bytes, tbbi);
     }
