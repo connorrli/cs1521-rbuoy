@@ -100,8 +100,9 @@ void Out_Create_TABI(FILE *f, char *in_pathnames[], size_t num_in_pathnames, cha
         fwrite(num_blocks_bytes, sizeof(char), NUM_BLOCKS_SIZE, f);
 
         // Write hashed blocks separately
-        uint64_t hashes[num_blocks];
         FILE *local_file = File_Open(in_pathnames[i], "rb", TYPE_A_MAGIC);
+
+        uint64_t hashes[num_blocks];
 
         file_get_hashes(local_file, hashes, num_blocks);
         file_append_hashes(local_file, f, hashes, num_blocks);
