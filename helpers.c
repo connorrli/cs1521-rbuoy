@@ -122,7 +122,7 @@ void Out_Create_TABI(FILE *f, char *in_pathnames[], size_t num_in_pathnames, cha
 void Out_Create_TBBI(FILE *tabi, FILE *tbbi) {
     const int START_BYTE = MAGIC_SIZE + NUM_RECORDS_SIZE;
 
-    // enforce_identifier(tabi, TYPE_A_MAGIC);
+    enforce_identifier(tabi, TYPE_A_MAGIC);
     // uint64_t tabi_file_size = file_get_size(tabi);
 
     fseek_handler(tabi, MAGIC_SIZE, SEEK_SET);
