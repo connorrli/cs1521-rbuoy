@@ -190,6 +190,13 @@ void Out_Create_TBBI(FILE *tabi, FILE *tbbi) {
             tabi, hashes, match_bytes, max_num_blocks, num_match_bytes
         );
 
+        // Progress past any blocks that weren't checked
+        if (num_blocks > num_local_blocks) {
+            fseek_handler(
+                tabi, (num_blocks - num_local_blocks) * HASH_SIZE, SEEK_CUR
+            );
+        }
+
         fwrite(match_bytes, sizeof(char), num_match_bytes, tbbi);
     }
 
