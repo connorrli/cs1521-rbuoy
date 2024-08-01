@@ -99,10 +99,12 @@ void Out_Create_TABI(FILE *f, char *in_pathnames[], size_t num_in_pathnames, cha
         int_to_bytes(num_blocks, num_blocks_bytes, NUM_BLOCKS_SIZE);
         fwrite(num_blocks_bytes, sizeof(char), NUM_BLOCKS_SIZE, f);
 
-        if (num_blocks <= 0) continue;
-
         // Write hashed blocks separately
         FILE *local_file = File_Open(in_pathnames[i], "rb", TYPE_A_MAGIC);
+
+        counter++;
+
+        if (num_blocks <= 0) continue;
 
         uint64_t hashes[num_blocks];
 
@@ -110,8 +112,6 @@ void Out_Create_TABI(FILE *f, char *in_pathnames[], size_t num_in_pathnames, cha
         file_append_hashes(local_file, f, hashes, num_blocks);
 
         fclose(local_file);
-
-        counter++;
     }
 
     out_append_header(f, magic_number, counter);
