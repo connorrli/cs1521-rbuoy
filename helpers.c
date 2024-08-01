@@ -162,7 +162,7 @@ void Out_Create_TBBI(FILE *tabi, FILE *tbbi) {
         fwrite(num_blocks_bytes, sizeof(char), NUM_BLOCKS_SIZE, tbbi);
 
         // A
-        FILE *local_file = File_Open(pathname, "a+", TYPE_B_MAGIC);
+        FILE *local_file = File_Open(pathname, "r", TYPE_B_MAGIC);
 
         // If file not found or no blocks, then matches is 0
         if (local_file == NULL || num_blocks == 0) {
