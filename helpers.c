@@ -169,9 +169,6 @@ void Out_Create_TBBI(FILE *tabi, FILE *tbbi) {
             continue;
         }
 
-        size_t num_match_bytes = num_tbbi_match_bytes(num_blocks);
-        uint8_t match_bytes[num_match_bytes];
-
         size_t num_local_blocks = file_get_num_blocks(
             file_get_size(local_file),
             pathname
@@ -183,6 +180,9 @@ void Out_Create_TBBI(FILE *tabi, FILE *tbbi) {
 
         size_t max_num_blocks = (num_blocks > num_local_blocks) ? 
         num_local_blocks : num_blocks;
+
+        size_t num_match_bytes = num_tbbi_match_bytes(max_num_blocks);
+        uint8_t match_bytes[num_match_bytes];
 
         file_find_matches(
             tabi, hashes, match_bytes, max_num_blocks, num_match_bytes
