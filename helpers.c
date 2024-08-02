@@ -191,6 +191,7 @@ void Out_Create_TCBI(FILE* tbbi, FILE *tcbi) {
     size_t num_records = file_get_num_records(tbbi);
 
     fseek_handler(tbbi, START_BYTE, SEEK_SET);
+    fseek_handler(tcbi, START_BYTE, SEEK_SET);
     for (size_t record_n = 0; record_n < num_records; record_n++) {
         size_t pathname_length = file_copy_pathname_length(tbbi, tcbi);
         char pathname[pathname_length + 1];
@@ -221,11 +222,16 @@ void Out_Create_TCBI(FILE* tbbi, FILE *tcbi) {
         // Return back to original spot
         fseek_handler(tcbi, curr_pos, SEEK_SET);
     }
+
+    out_append_header(tcbi, TYPE_C_MAGIC, num_records);
+    check_eof(tbbi);
+
+    return;
 }
 
 size_t file_append_updates(FILE *src, FILE *tbbi, FILE *tcbi, size_t num_blocks) {
     if (num_blocks == 0) return 0;
-    
+
     size_t num_match_bytes = num_tbbi_match_bytes(num_blocks);
 
     size_t counter = 0;
@@ -235,9 +241,11 @@ size_t file_append_updates(FILE *src, FILE *tbbi, FILE *tcbi, size_t num_blocks)
 
     for (size_t match_byte_n = 0; match_byte_n < num_match_bytes; match_byte_n++) {
         size_t block_n = 0;
-        while (block_n < MATCH_BYTE_BITS) {
-            if ((match_bytes[match_byte_n] & 0x01) == 0x01) {
+
+        while (block_n < MATCH_BYTE_BITS && block_n < num_blocks) {
+            if ((match_bytes[match_byte_n] & 0x80) != 0x80) {
                 // Get the block's index
+                printf("%lu, %lu, %x\n", match_byte_n, block_n, match_bytes[match_byte_n]);
                 size_t block_index = (match_byte_n * MATCH_BYTE_BITS) + block_n;
                 uint8_t block_index_bytes[BLOCK_INDEX_SIZE];
                 int_to_bytes(block_index, block_index_bytes, BLOCK_INDEX_SIZE);
@@ -250,7 +258,7 @@ size_t file_append_updates(FILE *src, FILE *tbbi, FILE *tcbi, size_t num_blocks)
 
                 // Get bytes for file
                 uint8_t buffer[BLOCK_SIZE];
-                fseek_handler(src, block_index, SEEK_SET);
+                fseek_handler(src, block_index * BLOCK_SIZE, SEEK_SET);
                 fread_handler(buffer, sizeof(uint8_t), BLOCK_SIZE, src);
 
                 // Write in that order (block_index, update_length, block data)
@@ -261,7 +269,7 @@ size_t file_append_updates(FILE *src, FILE *tbbi, FILE *tcbi, size_t num_blocks)
                 counter++;
             }
 
-            match_bytes[match_byte_n] >>= 1;
+            match_bytes[match_byte_n] <<= 1;
             block_n++;
         }
     }
@@ -298,24 +306,25 @@ void fputc_handler(FILE *f, int8_t c) {
 }
 
 void file_append_permissions(FILE *f, uint64_t type) {
-    int8_t val = type & ~__S_IFMT;
-
-    for (size_t i = 1; i < MODE_SIZE; i++) {
-        switch (i % 3) {
-            case 1:
-                (val & S_IRUSR) ? 
-                fputc_handler(f, 'r') : fputc_handler(f, '-');
-                break;
-            case 2:
-                (val & S_IRUSR) ?
-                fputc_handler(f, 'w') : fputc_handler(f, '-');
-                break;
-            case 0:
-                (val & S_IRUSR) ? 
-                fputc_handler(f, 'x') : fputc_handler(f, '-');
-                break;
-        }
-    }
+    // Probably a much better way to do this but whatever
+    (type & S_IRUSR) ? 
+    fputc_handler(f, 'r') : fputc_handler(f, '-');
+    (type & S_IWUSR) ? 
+    fputc_handler(f, 'w') : fputc_handler(f, '-');
+    (type & S_IXUSR) ? 
+    fputc_handler(f, 'x') : fputc_handler(f, '-');
+    (type & S_IRGRP) ? 
+    fputc_handler(f, 'r') : fputc_handler(f, '-');
+    (type & S_IWGRP) ? 
+    fputc_handler(f, 'w') : fputc_handler(f, '-');
+    (type & S_IXGRP) ? 
+    fputc_handler(f, 'x') : fputc_handler(f, '-');
+    (type & S_IROTH) ? 
+    fputc_handler(f, 'r') : fputc_handler(f, '-');
+    (type & S_IWOTH) ?
+    fputc_handler(f, 'w') : fputc_handler(f, '-');
+    (type & S_IXOTH) ? 
+    fputc_handler(f, 'x') : fputc_handler(f, '-');
 
     return;
 }
