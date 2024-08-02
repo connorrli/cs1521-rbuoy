@@ -23,7 +23,7 @@
 
 // CONVERTING //
 
-void int_to_bytes(uint64_t num, uint8_t bytes[], uint32_t num_bytes);
+void int_to_bytes(uint64_t num, uint8_t bytes[], int32_t num_bytes);
 
 uint64_t bytes_to_uint(uint8_t bytes[], uint64_t num_bytes);
 
@@ -398,7 +398,7 @@ size_t file_get_num_blocks(long bytes, char *pathname) {
 }
 
 // Function that takes in an array of bytes and number of bytes
-void int_to_bytes(uint64_t num, uint8_t bytes[], uint32_t num_bytes) {
+void int_to_bytes(uint64_t num, uint8_t bytes[], int32_t num_bytes) {
     // Put largest number in biggest index to make little-endian
     for (size_t i = num_bytes - 1; i >= 0; i--) {
         bytes[i] = (num >> i * BITS_IN_BYTE) & 0xFF;
