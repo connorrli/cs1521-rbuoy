@@ -222,6 +222,9 @@ void Out_Create_TCBI(FILE* tbbi, FILE *tcbi) {
 
         // Return back to original spot
         fseek_handler(tcbi, curr_pos, SEEK_SET);
+
+        check_eof(local_file);
+        fclose(local_file);
     }
 
     out_append_header(tcbi, TYPE_C_MAGIC, num_records);
