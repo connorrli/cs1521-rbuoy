@@ -283,6 +283,14 @@ size_t file_append_updates(FILE *src, FILE *tbbi, FILE *tcbi, size_t num_blocks)
             match_bytes[match_byte_n] <<= 1;
             block_n++;
         }
+
+        if (
+            (match_byte_n = num_match_bytes - 1) &&
+            ((match_bytes[match_byte_n] & 0xFF) != 0x00)
+        ) {
+            fprintf(stderr, "Error: Record has been incorrectly padded");
+            exit(1);
+        }
     }
     
     return counter;
