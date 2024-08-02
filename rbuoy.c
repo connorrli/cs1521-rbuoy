@@ -2,8 +2,10 @@
 // COMP1521 24T2 --- Assignment 2: `rbuoy', a simple file synchroniser
 // <https://cgi.cse.unsw.edu.au/~cs1521/24T2/assignments/ass2/index.html>
 //
-// Written by YOUR-NAME-HERE (z5555555) on INSERT-DATE-HERE.
-// INSERT-DESCRIPTION-OF-PROGAM-HERE
+// Written by Connor Li (z5425430) on 02/08/2024.
+// Program to sync up files between two directories, by generating
+// receiver and sender local file status in the form of different files:
+// TABI, TBBI and TCBI.
 //
 // 2023-07-12   v1.0    Team COMP1521 <cs1521 at cse.unsw.edu.au>
 
@@ -74,5 +76,5 @@ void stage_3(char *out_pathname, char *in_pathname) {
 /// @brief Apply a TCBI file to the filesystem.
 /// @param in_pathname A path to where the existing TCBI file is located.
 void stage_4(char *in_pathname) {
-    // TODO: implement this.
+    // Didn't have time to implement
 }
