@@ -6,35 +6,72 @@
 #include "rbuoy.h"
 
 #define BITS_IN_BYTE 8
+#define START_BYTE (MAGIC_SIZE + NUM_RECORDS_SIZE)
 
 //////////////////////////////////////////////////////////////////////
 //                        FUNCTION PROTOTYPES
 //////////////////////////////////////////////////////////////////////
 
-void file_append_hashes(
-    FILE *src, FILE *dest, uint64_t hashes[], size_t num_hashes
-);
-struct stat file_get_stat(char *pathname);
-size_t file_get_num_blocks(long bytes, char *pathname);
+// CONVERTING //
+
 void int_to_bytes(uint64_t num, unsigned char bytes[], int num_bytes);
-void out_append_header(FILE *f, char *magic_number, int num_records);
-void fseek_handler(FILE *f, long offset, int whence);
-void fread_handler(void *ptr, size_t size, size_t n, FILE *stream);
+
+uint64_t bytes_to_uint(uint8_t bytes[], uint64_t num_bytes);
+
+uint64_t file_get_size(FILE *f);
+
+// FETCHING //
+
+struct stat file_get_stat(char *pathname);
+
+size_t file_get_num_blocks(long bytes, char *pathname);
 
 void file_get_hashes(FILE *src, uint64_t hashes[], size_t num_blocks);
+
 void file_find_matches(
     FILE *tabi, uint64_t hashes[], uint8_t match_bytes[], 
     size_t num_blocks, size_t max_blocks, size_t num_match_bytes
 );
+
 uint64_t block_get_trailing(uint64_t size);
+
 uint64_t block_get_hash(
     FILE *src, char block[BLOCK_SIZE], int isTrailing, long trailing_size
 );
 
-uint64_t bytes_to_uint(uint8_t bytes[], uint64_t num_bytes);
-uint64_t file_get_size(FILE *f);
+size_t file_get_num_records(FILE *f);
+
+// APPENDING & COPYING //
+
+void out_append_header(FILE *f, char *magic_number, int num_records);
+
+void file_append_hashes(
+    FILE *src, FILE *dest, uint64_t hashes[], size_t num_hashes
+);
+
+void file_append_matches(
+    FILE* src, FILE *dest, char *pathname, size_t num_blocks
+);
+
+size_t file_copy_num_blocks(FILE *src, FILE *dest);
+
+void file_copy_pathname(
+    FILE* src, FILE* dest, size_t pathname_length, char pathname[]
+);
+
+size_t file_copy_pathname_length(FILE* src, FILE* dest);
+
+// ERROR CHECKING //
+
 void enforce_identifier(FILE *f, char *magic_number);
+
 void check_eof(FILE *f);
+
+// FUNCTION WRAPPERS (W/ ERROR CHECKS) //
+
+void fseek_handler(FILE *f, long offset, int whence);
+
+void fread_handler(void *ptr, size_t size, size_t n, FILE *stream);
 
 //////////////////////////////////////////////////////////////////////
 //                        INTERFACE FUNCTIONS
@@ -57,9 +94,6 @@ FILE *File_Open(char *pathname, char *open_type, char *file_type) {
 }
 
 void Out_Create_TABI(FILE *f, char *in_pathnames[], size_t num_in_pathnames, char *magic_number) {
-    // LOCAL CONSTS
-    const int START_BYTE = MAGIC_SIZE + NUM_RECORDS_SIZE;
-
     int counter = 0;
 
     // Set pointer to just after the header
@@ -74,7 +108,7 @@ void Out_Create_TABI(FILE *f, char *in_pathnames[], size_t num_in_pathnames, cha
         struct stat stat = file_get_stat(in_pathnames[i]);
 
         // Get path length
-        int path_length = strlen(in_pathnames[i]);
+        size_t path_length = strlen(in_pathnames[i]);
         if ((path_length | USHRT_MAX) > USHRT_MAX) {
             fprintf(
                 stderr, "Error: file '%s' length > %u", 
@@ -88,15 +122,15 @@ void Out_Create_TABI(FILE *f, char *in_pathnames[], size_t num_in_pathnames, cha
             stat.st_size, in_pathnames[i]
         );
 
-        // Write record details
         unsigned char path_length_bytes[PATHNAME_LEN_SIZE];
         int_to_bytes(path_length, path_length_bytes, PATHNAME_LEN_SIZE);
-        fwrite(path_length_bytes, sizeof(char), PATHNAME_LEN_SIZE, f);
-
-        fwrite(in_pathnames[i], sizeof(char), path_length, f);
 
         unsigned char num_blocks_bytes[NUM_BLOCKS_SIZE];
         int_to_bytes(num_blocks, num_blocks_bytes, NUM_BLOCKS_SIZE);
+
+        // Write record details
+        fwrite(path_length_bytes, sizeof(char), PATHNAME_LEN_SIZE, f);
+        fwrite(in_pathnames[i], sizeof(char), path_length, f);
         fwrite(num_blocks_bytes, sizeof(char), NUM_BLOCKS_SIZE, f);
 
         // Write hashed blocks separately
@@ -119,84 +153,39 @@ void Out_Create_TABI(FILE *f, char *in_pathnames[], size_t num_in_pathnames, cha
 }
 
 void Out_Create_TBBI(FILE *tabi, FILE *tbbi) {
-    const int START_BYTE = MAGIC_SIZE + NUM_RECORDS_SIZE;
-
     enforce_identifier(tabi, TYPE_A_MAGIC);
-    // uint64_t tabi_file_size = file_get_size(tabi);
 
-    fseek_handler(tabi, MAGIC_SIZE, SEEK_SET);
-    unsigned char num_record_char[NUM_RECORDS_SIZE];
-    fread_handler(num_record_char, sizeof(char), NUM_RECORDS_SIZE, tabi);
-    int num_records = bytes_to_uint(num_record_char, 1); 
+    size_t num_records = file_get_num_records(tabi);
 
     fseek_handler(tabi, START_BYTE, SEEK_SET);
     fseek_handler(tbbi, START_BYTE, SEEK_SET);
-    for (int record_n = 0; record_n < num_records; record_n++) {
-        // Get pathname length
-        uint8_t pathname_length_bytes[PATHNAME_LEN_SIZE];
-        fread_handler(
-            pathname_length_bytes, sizeof(char), PATHNAME_LEN_SIZE, tabi
-        );
-        uint64_t pathname_length = bytes_to_uint(
-            pathname_length_bytes, PATHNAME_LEN_SIZE
-        );
-
-        // Get pathname, add 1 extra for '\0' just in case
+    for (size_t record_n = 0; record_n < num_records; record_n++) {
+        size_t pathname_length = file_copy_pathname_length(tabi, tbbi);
         char pathname[pathname_length + 1];
-        fread_handler(
-            pathname, sizeof(char), pathname_length, tabi
-        );
-        pathname[pathname_length] = '\0';
-
-        // Get number of blocks
-        uint8_t num_blocks_bytes[NUM_BLOCKS_SIZE];
-        fread_handler(
-            num_blocks_bytes, sizeof(char), NUM_BLOCKS_SIZE, tabi
-        );
-        uint64_t num_blocks = bytes_to_uint(num_blocks_bytes, NUM_BLOCKS_SIZE);
-
-        // Append all those properties
-        fwrite(pathname_length_bytes, sizeof(char), PATHNAME_LEN_SIZE, tbbi);
-        fwrite(pathname, sizeof(char), pathname_length, tbbi);
-        fwrite(num_blocks_bytes, sizeof(char), NUM_BLOCKS_SIZE, tbbi);
+        file_copy_pathname(tabi, tbbi, pathname_length, pathname);
+        size_t num_blocks = file_copy_num_blocks(tabi, tbbi);
 
         if (num_blocks == 0) continue;
 
-        // A
-        FILE *local_file = File_Open(pathname, "r", TYPE_B_MAGIC);
-
-        size_t num_local_blocks = file_get_num_blocks(
-            file_get_size(local_file),
-            pathname
-        );
-
-        // If file not found or no blocks, then matches is 0
-        size_t num_match_bytes = num_tbbi_match_bytes(num_blocks);
-        uint8_t match_bytes[num_match_bytes];
-        
-        if (local_file == NULL || num_local_blocks == 0) {
-            uint64_t placeholder_array[1];
-            file_find_matches(
-                tabi, placeholder_array, match_bytes, num_blocks, 0, num_tbbi_match_bytes(num_blocks)
-            );
-        } else {
-            uint64_t hashes[num_local_blocks];
-            file_get_hashes(local_file, hashes, num_local_blocks);
-
-            size_t max_num_blocks = (num_blocks > num_local_blocks) ? 
-            num_local_blocks : num_blocks;
-
-            file_find_matches(
-                tabi, hashes, match_bytes, num_blocks, max_num_blocks, num_match_bytes
-            );
-        }
-
-        fwrite(match_bytes, sizeof(char), num_match_bytes, tbbi);
+        file_append_matches(tabi, tbbi, pathname, num_blocks);
     }
     out_append_header(tbbi, TYPE_B_MAGIC, num_records);
 
     check_eof(tabi);
     return;
+}
+
+void Out_Create_TCBI(FILE* tbbi, FILE *tcbi) {
+    // enforce_identifier(tbbi, TYPE_B_MAGIC);
+
+    // size_t num_records = file_get_num_records(tbbi);
+
+    // fseek_handler(tbbi, START_BYTE, SEEK_SET);
+    // for (size_t record_n = 0; record_n < num_records; record_n++) {
+    //     size_t pathname_length = file_copy_pathname_length(tbbi, tcbi);
+    //     char pathname[pathname_length + 1];
+    //     file_copy_pathname(tbbi, tcbi, pathname_length, pathname);
+    // }
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -238,8 +227,6 @@ void file_get_hashes(FILE *src, uint64_t hashes[], size_t num_blocks) {
     }
 }
 
-
-
 void file_append_hashes(FILE *src, FILE *dest, uint64_t hashes[], size_t num_hashes) {
     for (size_t hash_n = 0; hash_n < num_hashes; hash_n++) {
         unsigned char hashed_chars[HASH_SIZE];
@@ -250,8 +237,6 @@ void file_append_hashes(FILE *src, FILE *dest, uint64_t hashes[], size_t num_has
 
     return;
 }
-
-
 
 uint64_t block_get_trailing(uint64_t size) {
     uint64_t trailing_size_mod = size % BLOCK_SIZE;
@@ -402,5 +387,83 @@ void file_find_matches(
             match_bytes[match_index] = match_bytes[match_index] << right_padding_amount;
         }
     }
+}
+
+void file_append_matches(FILE* src, FILE *dest, char *pathname, size_t num_blocks) {
+    FILE *local_file = File_Open(pathname, "r", TYPE_B_MAGIC);
+
+    size_t num_local_blocks = file_get_num_blocks(
+        file_get_size(local_file),
+        pathname
+    );
+
+    // If file not found or no blocks, then matches is 0
+    size_t num_match_bytes = num_tbbi_match_bytes(num_blocks);
+    uint8_t match_bytes[num_match_bytes];
+    
+    if (local_file == NULL || num_local_blocks == 0) {
+        uint64_t placeholder_array[1];
+        file_find_matches(
+            src, placeholder_array, match_bytes, num_blocks, 0, num_match_bytes
+        );
+    } else {
+        uint64_t hashes[num_local_blocks];
+        file_get_hashes(local_file, hashes, num_local_blocks);
+
+        size_t max_num_blocks = (num_blocks > num_local_blocks) ? 
+        num_local_blocks : num_blocks;
+
+        file_find_matches(
+            src, hashes, match_bytes, num_blocks, max_num_blocks, num_match_bytes
+        );
+    }
+
+    fwrite(match_bytes, sizeof(char), num_match_bytes, dest);
+    fclose(local_file);
+}
+
+size_t file_copy_pathname_length(FILE* src, FILE* dest) { 
+    uint8_t pathname_length_bytes[PATHNAME_LEN_SIZE];
+    fread_handler(
+        pathname_length_bytes, sizeof(char), PATHNAME_LEN_SIZE, src
+    );
+    size_t pathname_length = bytes_to_uint(
+        pathname_length_bytes, PATHNAME_LEN_SIZE
+    );
+
+    fwrite(pathname_length_bytes, sizeof(char), PATHNAME_LEN_SIZE, dest);
+
+    return pathname_length;
+}
+
+void file_copy_pathname(
+    FILE* src, FILE* dest, size_t pathname_length, char pathname[]
+) { 
+    fread_handler(
+        pathname, sizeof(char), pathname_length, src
+    );
+    pathname[pathname_length] = '\0';
+
+    fwrite(pathname, sizeof(char), pathname_length, dest);
+}
+
+size_t file_copy_num_blocks(FILE *src, FILE *dest) {
+    uint8_t num_blocks_bytes[NUM_BLOCKS_SIZE];
+    fread_handler(
+        num_blocks_bytes, sizeof(char), NUM_BLOCKS_SIZE, src
+    );
+
+    fwrite(num_blocks_bytes, sizeof(char), NUM_BLOCKS_SIZE, dest);
+
+    return bytes_to_uint(num_blocks_bytes, NUM_BLOCKS_SIZE);;
+}
+
+size_t file_get_num_records(FILE *f) {
+    fseek_handler(f, MAGIC_SIZE, SEEK_SET);
+    unsigned char num_record_char[NUM_RECORDS_SIZE];
+    fread_handler(num_record_char, sizeof(char), NUM_RECORDS_SIZE, f);
+    fseek_handler(f, 0, SEEK_SET);
+
+    return bytes_to_uint(num_record_char, 1); 
 }
 
