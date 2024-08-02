@@ -18,9 +18,9 @@ void int_to_bytes(uint64_t num, unsigned char bytes[], int num_bytes);
 
 uint64_t bytes_to_uint(uint8_t bytes[], uint64_t num_bytes);
 
-uint64_t file_get_size(FILE *f);
-
 // FETCHING //
+
+uint64_t file_get_size(FILE *f);
 
 struct stat file_get_stat(char *pathname);
 
@@ -53,6 +53,14 @@ void file_append_matches(
     FILE* src, FILE *dest, char *pathname, size_t num_blocks
 );
 
+size_t file_append_updates(FILE *src, FILE *tbbi, FILE *tcbi, size_t num_blocks);
+
+void file_append_size(FILE *f);
+
+void file_append_type(FILE *f, uint64_t type);
+
+void file_append_permissions(FILE *f, uint64_t type);
+
 size_t file_copy_num_blocks(FILE *src, FILE *dest);
 
 void file_copy_pathname(
@@ -73,20 +81,22 @@ void fseek_handler(FILE *f, long offset, int whence);
 
 void fread_handler(void *ptr, size_t size, size_t n, FILE *stream);
 
+void fputc_handler(FILE *f, int8_t c);
+
 //////////////////////////////////////////////////////////////////////
 //                        INTERFACE FUNCTIONS
 //////////////////////////////////////////////////////////////////////
 
-FILE *File_Open(char *pathname, char *open_type, char *file_type) {
+FILE *File_Open(char *pathname, char *open_type, enum Open_Errors handled) {
     FILE *f = fopen(pathname, open_type);
 
     if (f == NULL) {
-        if (strcmp(file_type, TYPE_A_MAGIC) == 0) {
+        if (handled == HANDLED) {
             perror("Error");
             exit(1);
         }
 
-        if (strcmp(file_type, TYPE_B_MAGIC) == 0) return f;
+        if (handled == NOT_HANDLED) return f;
 
         // TODO: Cover case for TYPE_C_MAGIC depending on requirements
     }
@@ -134,7 +144,7 @@ void Out_Create_TABI(FILE *f, char *in_pathnames[], size_t num_in_pathnames, cha
         fwrite(num_blocks_bytes, sizeof(char), NUM_BLOCKS_SIZE, f);
 
         // Write hashed blocks separately
-        FILE *local_file = File_Open(in_pathnames[i], "rb", TYPE_A_MAGIC);
+        FILE *local_file = File_Open(in_pathnames[i], "rb", NOT_HANDLED);
 
         counter++;
 
@@ -176,16 +186,136 @@ void Out_Create_TBBI(FILE *tabi, FILE *tbbi) {
 }
 
 void Out_Create_TCBI(FILE* tbbi, FILE *tcbi) {
-    // enforce_identifier(tbbi, TYPE_B_MAGIC);
+    enforce_identifier(tbbi, TYPE_B_MAGIC);
 
-    // size_t num_records = file_get_num_records(tbbi);
+    size_t num_records = file_get_num_records(tbbi);
 
-    // fseek_handler(tbbi, START_BYTE, SEEK_SET);
-    // for (size_t record_n = 0; record_n < num_records; record_n++) {
-    //     size_t pathname_length = file_copy_pathname_length(tbbi, tcbi);
-    //     char pathname[pathname_length + 1];
-    //     file_copy_pathname(tbbi, tcbi, pathname_length, pathname);
-    // }
+    fseek_handler(tbbi, START_BYTE, SEEK_SET);
+    for (size_t record_n = 0; record_n < num_records; record_n++) {
+        size_t pathname_length = file_copy_pathname_length(tbbi, tcbi);
+        char pathname[pathname_length + 1];
+        file_copy_pathname(tbbi, tcbi, pathname_length, pathname);
+
+        uint8_t num_blocks_bytes[NUM_BLOCKS_SIZE];
+        fread_handler(num_blocks_bytes, sizeof(uint8_t), NUM_BLOCKS_SIZE, tbbi);
+        size_t num_blocks = bytes_to_uint(num_blocks_bytes, NUM_BLOCKS_SIZE);
+
+        struct stat stat = file_get_stat(pathname);
+
+        file_append_type(tcbi, stat.st_mode);
+        file_append_permissions(tcbi, stat.st_mode);
+        file_append_size(tcbi);
+
+        FILE *local_file = File_Open(pathname, "r", HANDLED);
+
+        int64_t update_size_pos = ftell(tcbi); 
+        fseek_handler(tcbi, UPDATE_LEN_SIZE, SEEK_CUR);
+        size_t num_updates = file_append_updates(local_file, tbbi, tcbi, num_blocks);
+        int64_t curr_pos = ftell(tcbi); 
+
+        fseek_handler(tcbi, update_size_pos, SEEK_SET);
+        uint8_t size_bytes[UPDATE_LEN_SIZE];
+        int_to_bytes(num_updates, size_bytes, UPDATE_LEN_SIZE);
+        fwrite(size_bytes, sizeof(uint8_t), UPDATE_LEN_SIZE, tcbi);
+
+        // Return back to original spot
+        fseek_handler(tcbi, curr_pos, SEEK_SET);
+    }
+}
+
+size_t file_append_updates(FILE *src, FILE *tbbi, FILE *tcbi, size_t num_blocks) {
+    size_t num_match_bytes = num_tbbi_match_bytes(num_blocks);
+
+    size_t counter = 0;
+
+    uint8_t match_bytes[num_match_bytes];
+    fread_handler(match_bytes, sizeof(uint8_t), num_match_bytes, tbbi);
+
+    for (size_t match_byte_n = 0; match_byte_n < num_match_bytes; match_byte_n++) {
+        size_t block_n = 0;
+        while (block_n < MATCH_BYTE_BITS) {
+            if ((match_bytes[match_byte_n] & 0x01) == 0x01) {
+                // Get the block's index
+                size_t block_index = (match_byte_n * MATCH_BYTE_BITS) + block_n;
+                uint8_t block_index_bytes[BLOCK_INDEX_SIZE];
+                int_to_bytes(block_index, block_index_bytes, BLOCK_INDEX_SIZE);
+
+                // Get the update length (i.e. block length)
+                size_t update_length = (block_index + 1 == num_blocks) ?
+                block_get_trailing(file_get_size(src)) : BLOCK_SIZE;
+                uint8_t update_length_bytes[UPDATE_LEN_SIZE];
+                int_to_bytes(update_length, update_length_bytes, UPDATE_LEN_SIZE);
+
+                // Get bytes for file
+                uint8_t buffer[BLOCK_SIZE];
+                fseek_handler(src, block_index, SEEK_SET);
+                fread_handler(buffer, sizeof(uint8_t), BLOCK_SIZE, src);
+
+                // Write in that order (block_index, update_length, block data)
+                fwrite(block_index_bytes, sizeof(uint8_t), BLOCK_INDEX_SIZE, tcbi);
+                fwrite(update_length_bytes, sizeof(uint8_t), UPDATE_LEN_SIZE, tcbi);
+                fwrite(buffer, sizeof(uint8_t), BLOCK_SIZE, tcbi);
+
+                counter++;
+            }
+
+            match_bytes[match_byte_n] >>= 1;
+            block_n++;
+        }
+    }
+    
+    return counter;
+}
+
+void file_append_size(FILE *f) {
+    uint8_t file_size_bytes[FILE_SIZE_SIZE];
+
+    uint64_t size = file_get_size(f);
+    int_to_bytes(size, file_size_bytes, FILE_SIZE_SIZE);
+
+    fwrite(file_size_bytes, sizeof(uint8_t), FILE_SIZE_SIZE, f);
+
+    return;
+}
+
+void file_append_type(FILE *f, uint64_t type) {
+    switch (type & __S_IFMT) {
+        case __S_IFREG: fputc_handler(f, '-'); break;
+        case __S_IFDIR: fputc_handler(f, 'd'); break;
+        // Not necessary but just in case
+        default: fputc_handler(f, '?'); break;
+    }
+}
+
+void fputc_handler(FILE *f, int8_t c) {
+    int8_t status = fputc(c, f);
+    if (status == EOF) {
+        fprintf(stderr, "Error: fputc failed");
+        exit(1);
+    }
+}
+
+void file_append_permissions(FILE *f, uint64_t type) {
+    int8_t val = type & ~__S_IFMT;
+
+    for (size_t i = 1; i < MODE_SIZE; i++) {
+        switch (i % 3) {
+            case 1:
+                (val & S_IRUSR) ? 
+                fputc_handler(f, 'r') : fputc_handler(f, '-');
+                break;
+            case 2:
+                (val & S_IRUSR) ?
+                fputc_handler(f, 'w') : fputc_handler(f, '-');
+                break;
+            case 0:
+                (val & S_IRUSR) ? 
+                fputc_handler(f, 'x') : fputc_handler(f, '-');
+                break;
+        }
+    }
+
+    return;
 }
 
 //////////////////////////////////////////////////////////////////////
@@ -390,7 +520,7 @@ void file_find_matches(
 }
 
 void file_append_matches(FILE* src, FILE *dest, char *pathname, size_t num_blocks) {
-    FILE *local_file = File_Open(pathname, "r", TYPE_B_MAGIC);
+    FILE *local_file = File_Open(pathname, "r", NOT_HANDLED);
 
     size_t num_local_blocks = file_get_num_blocks(
         file_get_size(local_file),

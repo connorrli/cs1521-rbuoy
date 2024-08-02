@@ -33,7 +33,7 @@
 ///                         everything in the current directory.
 void stage_1(char *out_pathname, char *in_pathnames[], size_t num_in_pathnames) {
     // Create file with name `out_pathname`
-    FILE *output_file = File_Open(out_pathname, "w", TYPE_A_MAGIC);
+    FILE *output_file = File_Open(out_pathname, "w", HANDLED);
 
     Out_Create_TABI(output_file, in_pathnames, num_in_pathnames, TYPE_A_MAGIC);
 
@@ -47,8 +47,8 @@ void stage_1(char *out_pathname, char *in_pathnames[], size_t num_in_pathnames) 
 /// @param out_pathname A path to where the new TBBI file should be created.
 /// @param in_pathname A path to where the existing TABI file is located.
 void stage_2(char *out_pathname, char *in_pathname) {
-    FILE *input_file = File_Open(in_pathname, "r+", TYPE_A_MAGIC);
-    FILE *output_file = File_Open(out_pathname, "w", TYPE_B_MAGIC);
+    FILE *input_file = File_Open(in_pathname, "r", HANDLED);
+    FILE *output_file = File_Open(out_pathname, "w", HANDLED);
 
     Out_Create_TBBI(input_file, output_file);
 
@@ -61,7 +61,13 @@ void stage_2(char *out_pathname, char *in_pathname) {
 /// @param out_pathname A path to where the new TCBI file should be created.
 /// @param in_pathname A path to where the existing TBBI file is located.
 void stage_3(char *out_pathname, char *in_pathname) {
-    // TODO: implement this.
+    FILE *input_file = File_Open(in_pathname, "r", HANDLED);
+    FILE *output_file = File_Open(out_pathname, "w", HANDLED);
+
+    Out_Create_TCBI(input_file, output_file);
+
+    fclose(input_file);
+    fclose(output_file);
 }
 
 
