@@ -243,7 +243,10 @@ size_t file_append_updates(FILE *src, FILE *tbbi, FILE *tcbi, size_t num_blocks)
     for (size_t match_byte_n = 0; match_byte_n < num_match_bytes; match_byte_n++) {
         size_t block_n = 0;
 
-        while (block_n < MATCH_BYTE_BITS && block_n < num_blocks) {
+        while (
+            (block_n < MATCH_BYTE_BITS) && 
+            ((match_byte_n * MATCH_BYTE_BITS + block_n) < num_blocks)
+        ) {
             if ((match_bytes[match_byte_n] & 0x80) != 0x80) {
                 // Get the block's index
                 size_t block_index = (match_byte_n * MATCH_BYTE_BITS) + block_n;
@@ -259,6 +262,7 @@ size_t file_append_updates(FILE *src, FILE *tbbi, FILE *tcbi, size_t num_blocks)
                 // Get bytes for file
                 uint8_t buffer[update_length];
                 fseek_handler(src, block_index * update_length, SEEK_SET);
+                printf("Index: %lu, Num blocks: %lu, Len: %lu\n", block_index, num_blocks, update_length);
                 fread_handler(buffer, sizeof(uint8_t), update_length, src);
 
                 // Write in that order (block_index, update_length, block data)
