@@ -212,6 +212,7 @@ void Out_Create_TCBI(FILE* tbbi, FILE *tcbi) {
         int64_t update_size_pos = ftell(tcbi); 
         fseek_handler(tcbi, BLOCK_INDEX_SIZE, SEEK_CUR);
         size_t num_updates = file_append_updates(local_file, tbbi, tcbi, num_blocks);
+
         int64_t curr_pos = ftell(tcbi); 
 
         fseek_handler(tcbi, update_size_pos, SEEK_SET);
@@ -256,14 +257,14 @@ size_t file_append_updates(FILE *src, FILE *tbbi, FILE *tcbi, size_t num_blocks)
                 int_to_bytes(update_length, update_length_bytes, UPDATE_LEN_SIZE);
 
                 // Get bytes for file
-                uint8_t buffer[BLOCK_SIZE];
-                fseek_handler(src, block_index * BLOCK_SIZE, SEEK_SET);
-                fread_handler(buffer, sizeof(uint8_t), BLOCK_SIZE, src);
+                uint8_t buffer[update_length];
+                fseek_handler(src, block_index * update_length, SEEK_SET);
+                fread_handler(buffer, sizeof(uint8_t), update_length, src);
 
                 // Write in that order (block_index, update_length, block data)
                 fwrite(block_index_bytes, sizeof(uint8_t), BLOCK_INDEX_SIZE, tcbi);
                 fwrite(update_length_bytes, sizeof(uint8_t), UPDATE_LEN_SIZE, tcbi);
-                fwrite(buffer, sizeof(uint8_t), BLOCK_SIZE, tcbi);
+                fwrite(buffer, sizeof(uint8_t), update_length, tcbi);
 
                 counter++;
             }
