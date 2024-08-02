@@ -419,7 +419,7 @@ void file_append_matches(FILE* src, FILE *dest, char *pathname, size_t num_block
     }
 
     fwrite(match_bytes, sizeof(char), num_match_bytes, dest);
-    fclose(local_file);
+    if (local_file != NULL) fclose(local_file);
 }
 
 size_t file_copy_pathname_length(FILE* src, FILE* dest) { 
