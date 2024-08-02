@@ -285,7 +285,7 @@ size_t file_append_updates(FILE *src, FILE *tbbi, FILE *tcbi, size_t num_blocks)
         }
 
         if (
-            (match_byte_n * MATCH_BYTE_BITS + block_n + 1 == num_blocks) &&
+            (match_byte_n * MATCH_BYTE_BITS + block_n == num_blocks) &&
             ((match_bytes[match_byte_n] & 0xFF) != 0x00)
         ) {
             fprintf(stderr, "Error: Record has been incorrectly padded");
