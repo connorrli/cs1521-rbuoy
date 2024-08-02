@@ -55,7 +55,7 @@ void file_append_matches(
 
 size_t file_append_updates(FILE *src, FILE *tbbi, FILE *tcbi, size_t num_blocks);
 
-void file_append_size(FILE *f);
+void file_append_size(FILE *f, FILE *src);
 
 void file_append_type(FILE *f, uint64_t type);
 
@@ -203,21 +203,21 @@ void Out_Create_TCBI(FILE* tbbi, FILE *tcbi) {
 
         struct stat stat = file_get_stat(pathname);
 
-        file_append_type(tcbi, stat.st_mode);
-        file_append_permissions(tcbi, stat.st_mode);
-        file_append_size(tcbi);
-
         FILE *local_file = File_Open(pathname, "r", HANDLED);
 
+        file_append_type(tcbi, stat.st_mode);
+        file_append_permissions(tcbi, stat.st_mode);
+        file_append_size(tcbi, local_file);
+
         int64_t update_size_pos = ftell(tcbi); 
-        fseek_handler(tcbi, UPDATE_LEN_SIZE, SEEK_CUR);
+        fseek_handler(tcbi, BLOCK_INDEX_SIZE, SEEK_CUR);
         size_t num_updates = file_append_updates(local_file, tbbi, tcbi, num_blocks);
         int64_t curr_pos = ftell(tcbi); 
 
         fseek_handler(tcbi, update_size_pos, SEEK_SET);
-        uint8_t size_bytes[UPDATE_LEN_SIZE];
-        int_to_bytes(num_updates, size_bytes, UPDATE_LEN_SIZE);
-        fwrite(size_bytes, sizeof(uint8_t), UPDATE_LEN_SIZE, tcbi);
+        uint8_t size_bytes[BLOCK_INDEX_SIZE];
+        int_to_bytes(num_updates, size_bytes, BLOCK_INDEX_SIZE);
+        fwrite(size_bytes, sizeof(uint8_t), BLOCK_INDEX_SIZE, tcbi);
 
         // Return back to original spot
         fseek_handler(tcbi, curr_pos, SEEK_SET);
@@ -277,10 +277,10 @@ size_t file_append_updates(FILE *src, FILE *tbbi, FILE *tcbi, size_t num_blocks)
     return counter;
 }
 
-void file_append_size(FILE *f) {
+void file_append_size(FILE *f, FILE *src) {
     uint8_t file_size_bytes[FILE_SIZE_SIZE];
 
-    uint64_t size = file_get_size(f);
+    uint64_t size = file_get_size(src);
     int_to_bytes(size, file_size_bytes, FILE_SIZE_SIZE);
 
     fwrite(file_size_bytes, sizeof(uint8_t), FILE_SIZE_SIZE, f);
