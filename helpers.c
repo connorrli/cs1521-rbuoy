@@ -205,6 +205,12 @@ void Out_Create_TCBI(FILE* tbbi, FILE *tcbi) {
 
         FILE *local_file = File_Open(pathname, "r", HANDLED);
 
+        size_t file_size = file_get_size(local_file);
+        if (number_of_blocks_in_file(file_size) != num_blocks) {
+            fprintf(stderr, "Error: A record has wrong number of blocks");
+            exit(1);
+        }
+
         file_append_type(tcbi, stat.st_mode);
         file_append_permissions(tcbi, stat.st_mode);
         file_append_size(tcbi, local_file);
@@ -223,7 +229,6 @@ void Out_Create_TCBI(FILE* tbbi, FILE *tcbi) {
         // Return back to original spot
         fseek_handler(tcbi, curr_pos, SEEK_SET);
 
-        check_eof(local_file);
         fclose(local_file);
     }
 
