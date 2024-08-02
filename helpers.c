@@ -224,6 +224,8 @@ void Out_Create_TCBI(FILE* tbbi, FILE *tcbi) {
 }
 
 size_t file_append_updates(FILE *src, FILE *tbbi, FILE *tcbi, size_t num_blocks) {
+    if (num_blocks == 0) return 0;
+    
     size_t num_match_bytes = num_tbbi_match_bytes(num_blocks);
 
     size_t counter = 0;
