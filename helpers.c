@@ -245,7 +245,6 @@ size_t file_append_updates(FILE *src, FILE *tbbi, FILE *tcbi, size_t num_blocks)
         while (block_n < MATCH_BYTE_BITS && block_n < num_blocks) {
             if ((match_bytes[match_byte_n] & 0x80) != 0x80) {
                 // Get the block's index
-                printf("%lu, %lu, %x\n", match_byte_n, block_n, match_bytes[match_byte_n]);
                 size_t block_index = (match_byte_n * MATCH_BYTE_BITS) + block_n;
                 uint8_t block_index_bytes[BLOCK_INDEX_SIZE];
                 int_to_bytes(block_index, block_index_bytes, BLOCK_INDEX_SIZE);
