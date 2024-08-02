@@ -261,7 +261,7 @@ size_t file_append_updates(FILE *src, FILE *tbbi, FILE *tcbi, size_t num_blocks)
 
                 // Get bytes for file
                 uint8_t buffer[update_length];
-                fseek_handler(src, block_index * update_length, SEEK_SET);
+                fseek_handler(src, block_index * BLOCK_SIZE, SEEK_SET);
                 fread_handler(buffer, sizeof(uint8_t), update_length, src);
 
                 // Write in that order (block_index, update_length, block data)
